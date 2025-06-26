@@ -52,11 +52,13 @@ export class AuthController {
 
   // This endpoint will redirect to Google for authentication
   @Get('google')
-  @UseGuards(AuthGuard('google'))
-  async googleAuth(@Query('role') role: string) {
-    // This endpoint will redirect to Google for authentication
-    // The role will be passed as a query parameter
-  }
+@UseGuards(AuthGuard('google'))
+googleAuth(@Query('role') role: string) {
+  // Redirect URL construction is now handled by Passport
+  // So we encode the role in the `state` query param
+  return { state: Buffer.from(JSON.stringify({ role })).toString('base64') };
+}
+
 
   // This endpoint will be called by Google after authentication
   @Get('google/callback')
