@@ -40,13 +40,22 @@ export class DoctorService {
         { specialization: `%${specialization.toLowerCase()}%` },
       );
     }
+
     return queryBuilder.getMany();
   }
 
   async getDoctorByID(id: number) {
     const doctor = await this.doctorRepo.findOne({
       where: { doctor_id: id },
+      select: [
+        'doctor_id',
+        'first_name',
+        'last_name',
+        'specialization',
+        'schedule_Type',
+      ],
     });
+
     if (!doctor) {
       throw new NotFoundException('Doctor not found with this id!');
     }
@@ -61,7 +70,6 @@ export class DoctorService {
 
     if (!doctor) throw new NotFoundException('Doctor not found');
 
-    // ✅ 1. Check if date is in the past
     const today = dayjs().startOf('day');
     const requestedDate = dayjs(dto.date);
     if (requestedDate.isBefore(today)) {
@@ -70,7 +78,6 @@ export class DoctorService {
       );
     }
 
-    // ✅ 2. Save availability record
     const availability = this.availabilityRepo.create({
       doctor,
       date: dto.date,
@@ -82,7 +89,6 @@ export class DoctorService {
 
     const savedAvailability = await this.availabilityRepo.save(availability);
 
-    // ✅ 3. Use dayjs to split time
     const start = dayjs(`${dto.date}T${dto.start_time}`);
     const end = dayjs(`${dto.date}T${dto.end_time}`);
 
@@ -92,15 +98,15 @@ export class DoctorService {
 
     while (current.isBefore(end)) {
       const slotTime = current.format('HH:mm');
+      console.log(`Checking slot at ${slotTime} for doctor ${doctorId}`);
 
-      // ✅ 4. Prevent duplicate slot (same doctor + date + time)
-      const existing = await this.slotRepo.findOne({
-        where: {
-          doctor: { doctor_id: doctorId },
-          slot_date: new Date(dto.date),
-          slot_time: slotTime,
-        },
-      });
+      const existing = await this.slotRepo
+        .createQueryBuilder('slot')
+        .leftJoin('slot.doctor', 'doctor')
+        .where('doctor.doctor_id = :doctorId', { doctorId })
+        .andWhere('slot.slot_date = :slotDate', { slotDate: dto.date })
+        .andWhere('slot.slot_time = :slotTime', { slotTime })
+        .getOne();
 
       if (!existing) {
         const slot = this.slotRepo.create({
@@ -113,6 +119,7 @@ export class DoctorService {
         });
 
         slots.push(slot);
+        console.log(`Creating new slot at ${slotTime}`);
       }
 
       current = current.add(30, 'minute');
@@ -138,7 +145,7 @@ export class DoctorService {
       where: {
         doctor: { doctor_id: doctorId },
         is_available: true,
-        slot_date: MoreThanOrEqual(today), // ✅ Only today or future
+        slot_date: MoreThanOrEqual(today),
       },
       relations: ['availability'],
       order: {
@@ -149,15 +156,12 @@ export class DoctorService {
       take: limit,
     });
 
-    const grouped = slots.reduce(
-      (acc, slot) => {
-        const date = new Date(slot.slot_date).toISOString().split('T')[0];
-        if (!acc[date]) acc[date] = [];
-        acc[date].push(slot.slot_time);
-        return acc;
-      },
-      {} as Record<string, string[]>,
-    );
+    const grouped = slots.reduce((acc, slot) => {
+      const date = new Date(slot.slot_date).toISOString().split('T')[0];
+      if (!acc[date]) acc[date] = [];
+      acc[date].push(slot.slot_time);
+      return acc;
+    }, {} as Record<string, string[]>);
 
     return {
       doctor_id: doctorId,
@@ -166,5 +170,20 @@ export class DoctorService {
       limit,
       data: grouped,
     };
+  }
+
+  async updateScheduleType(id: number, type: 'stream' | 'wave') {
+    const doctor = await this.doctorRepo.findOne({ where: { doctor_id: id } });
+    if (!doctor) throw new NotFoundException('Doctor not found');
+
+    doctor.schedule_Type = type;
+    return this.doctorRepo.save(doctor);
+  }
+
+  async findById(id: number) {
+    return this.doctorRepo.findOne({
+      where: { doctor_id: id },
+      relations: ['user'],
+    });
   }
 }

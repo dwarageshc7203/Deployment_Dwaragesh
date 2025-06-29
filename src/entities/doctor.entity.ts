@@ -52,4 +52,7 @@ export class Doctor {
 
   @OneToMany(() => DoctorAvailability, (availability) => availability.doctor)
   availabilities: DoctorAvailability[];
+
+  @Column({ type: 'enum', enum: ['stream', 'wave'], default: 'stream' })
+schedule_Type: 'stream' | 'wave';
 }
