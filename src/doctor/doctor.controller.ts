@@ -7,12 +7,15 @@ import {
   Post,
   Query,
   UseGuards,
+  Req,
+  Patch
 } from '@nestjs/common';
 import { DoctorService } from './doctor.service';
 import { CreateAvailabilityDto } from 'src/dto/availablity.dto';
 import { JwtAuthGuard } from 'src/common/guards/jwt.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
+import { ForbiddenException } from '@nestjs/common';
 
 @Controller('api/v1/doctors')
 export class DoctorController {
@@ -49,4 +52,23 @@ export class DoctorController {
   ) {
     return this.doctorService.getAvailableSlots(doctorId, +page, +limit);
   }
+
+  @Patch(':id/schedule_Type')
+@Roles('doctor')
+@UseGuards(JwtAuthGuard, RolesGuard)
+async updateScheduleType(
+  @Param('id') id: number,
+  @Body() body: { schedule_Type: 'stream' | 'wave' },
+  @Req() req: any,
+) {
+  const userId = req.user.sub;
+  const doctor = await this.doctorService.findById(+id);
+
+  if (!doctor || !doctor.user || doctor.user.user_id !== userId) {
+    throw new ForbiddenException('You can only update your own schedule type');
+  }
+
+  return this.doctorService.updateScheduleType(+id, body.schedule_Type);
+}
+
 }
