@@ -3,18 +3,21 @@ export class SignupDto {
   last_name: string;
   email: string;
   password?: string;
-  specialization?: string; // Optional for patients
-  phone_number?: string;
-  gender?: string;
-  dob?: Date;
-  patient_address?: string;
-  emergency_contact?: string;
-  role: 'doctor' | 'patient'; // Specify role as either doctor or patient
+  role: 'doctor' | 'patient';
 
-  education?: string; // Optional for doctors
-  experience?: number; // Optional for doctors
-  clinic_name?: string; // Optional for doctors
-  clinic_address?: string; // Optional for doctors
-  available_days?: string; // Optional for doctors
-  available_time_slots?: string; // Optional for doctors
+  // Patient-specific fields
+  phone_number: string;
+  gender: string;
+  dob: Date;
+  patient_address: string;
+  emergency_contact: string;
+
+  // Doctor-specific (optional)
+  specialization?: string;
+  education?: string;
+  experience?: number;
+  clinic_name?: string;
+  clinic_address?: string;
+  available_days?: string;
+  available_time_slots?: string;
 }
