@@ -62,7 +62,7 @@ export class AppointmentService {
     }
 
     const patient = await this.patientRepo.findOne({
-      where: { patient_id: patientId },
+  where: { user: { user_id: patientId } }, // ✅ CORRECT
     });
     if (!patient) throw new NotFoundException('Patient not found');
 
