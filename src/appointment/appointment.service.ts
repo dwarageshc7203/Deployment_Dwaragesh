@@ -75,7 +75,15 @@ export class AppointmentService {
       reason: dto.reason || '',
       notes: dto.notes || '',
     });
+     if (!patient) {
+  console.log('❌ Patient not found for patient ID:', patientId);
+  throw new NotFoundException('Patient not found');
+}
 
+console.log('✅ Found patient:', patientId);
+
+
+  console.log('✅ Found patient:', patientId);
     const saved = await this.appointmentRepo.save(appointment);
     console.log('✅ Appointment saved:', saved);
     return saved;
