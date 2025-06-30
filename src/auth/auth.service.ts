@@ -30,8 +30,9 @@ export class AuthService {
   ) {}
 
   async Signup(signupdto: SignupDto) {
-    //checking if email already exists
+    console.log('SIGNUP DTO:', signupdto);
     const exists = await this.userRepository.findOne({
+      
       where: { email: signupdto.email },
     });
 
