@@ -35,4 +35,7 @@ export class Appointment {
 
   @UpdateDateColumn({ type: 'timestamp' })
   updated_at: Date;
+
+  @Column({ default: false })
+is_dummy?: boolean;
 }

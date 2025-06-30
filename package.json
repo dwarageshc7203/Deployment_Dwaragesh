@@ -12,7 +12,7 @@
   "start:dev": "nest start --watch",
   "typeorm": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js",
   "migration:run": "ts-node -r tsconfig-paths/register -r dotenv/config ./node_modules/typeorm/cli.js migration:run -d src/data-source.ts",
-  "migration:generate": "ts-node -r tsconfig-paths/register -r dotenv/config ./node_modules/typeorm/cli.js migration:generate -d src/data-source.ts src/migrations",
+"migration:generate": "ts-node -r tsconfig-paths/register -r dotenv/config ./node_modules/typeorm/cli.js migration:generate -d src/data-source.ts",
   "typeorm:migration:create": "ts-node -r dotenv/config -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:create",
   "typeorm:migration:generate": "ts-node -r dotenv/config -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:generate -d src/data-source.ts",
   "typeorm:migration:run": "ts-node -r dotenv/config -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:run -d src/data-source.ts",
