@@ -15,8 +15,8 @@ export const AppDataSource = new DataSource({
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
   entities: [Doctor, Patient, User, Appointment, Timeslot, DoctorAvailability],
-  migrations: ['src/migrations/*.ts'],
-  synchronize: false,
+  migrations: [],
+  synchronize: true,
   ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
 });
 
