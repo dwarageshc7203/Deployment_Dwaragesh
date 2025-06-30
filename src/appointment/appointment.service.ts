@@ -5,9 +5,8 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
+import { Repository, Between, Not } from 'typeorm';
 import * as dayjs from 'dayjs';
-
 import { Appointment } from 'src/entities/appointment.entity';
 import { Doctor } from 'src/entities/doctor.entity';
 import { Patient } from 'src/entities/patient.entity';
@@ -51,6 +50,7 @@ export class AppointmentService {
       .where('doctor.doctor_id = :doctorId', { doctorId: dto.doctor_id })
       .andWhere('appointment.appointment_date = :date', { date: dto.slot_date })
       .andWhere('appointment.time_slot = :slot', { slot: dto.slot_time })
+      .andWhere('appointment.appointment_status != :status', { status: 'cancelled' })
       .getMany();
 
     if (doctor.schedule_Type === 'stream' && existing.length > 0) {
@@ -84,6 +84,7 @@ export class AppointmentService {
   async getAppointmentsByDoctorAndDate(doctorId: number, date?: string) {
     const whereClause: any = {
       doctor: { doctor_id: doctorId },
+      appointment_status: Not('cancelled'),
     };
 
     if (date) {
@@ -94,17 +95,17 @@ export class AppointmentService {
       whereClause.appointment_date = Between(dayStart, dayEnd);
     }
 
-    const appointments = await this.appointmentRepo.find({
+    return this.appointmentRepo.find({
       where: whereClause,
       relations: ['doctor', 'patient'],
       order: { appointment_date: 'ASC' },
     });
-
-    return appointments;
   }
 
   async getAppointments(user: any, date?: string) {
-    const whereClause: any = {};
+    const whereClause: any = {
+      appointment_status: Not('cancelled'),
+    };
 
     if (user.role === 'doctor') {
       whereClause.doctor = { doctor_id: user.doctor_id };
@@ -128,27 +129,34 @@ export class AppointmentService {
   }
 
   async cancelAppointment(appointmentId: number, userId: number, role: string) {
-    const appointment = await this.appointmentRepo.findOne({
-      where: { appointment_id: appointmentId },
-      relations: ['doctor', 'doctor.user', 'patient', 'patient.user'],
-    });
+  const appointment = await this.appointmentRepo.findOne({
+    where: { appointment_id: appointmentId },
+    relations: ['doctor', 'doctor.user', 'patient', 'patient.user'],
+  });
 
-    if (!appointment) {
-      throw new NotFoundException('Appointment not found');
-    }
-
-    const isDoctor = appointment.doctor?.user?.user_id === userId;
-    const isPatient = appointment.patient?.user?.user_id === userId;
-
-    if ((role === 'doctor' && !isDoctor) || (role === 'patient' && !isPatient)) {
-      throw new UnauthorizedException(
-        'You are not authorized to cancel this appointment',
-      );
-    }
-
-    appointment.appointment_status = 'cancelled';
-    await this.appointmentRepo.save(appointment);
-
-    return { message: 'Appointment cancelled successfully' };
+  if (!appointment) {
+    throw new NotFoundException('Appointment not found');
   }
+
+  if (appointment.appointment_status === 'cancelled') {
+    return { message: 'Appointment is already cancelled' };
+  }
+
+  const isDoctor = appointment.doctor?.user?.user_id === userId;
+  const isPatient = appointment.patient?.user?.user_id === userId;
+
+  if ((role === 'doctor' && !isDoctor) || (role === 'patient' && !isPatient)) {
+    throw new UnauthorizedException(
+      'You are not authorized to cancel this appointment',
+    );
+  }
+
+  await this.appointmentRepo.update(appointmentId, {
+    appointment_status: 'cancelled',
+  });
+
+  return { message: 'Appointment cancelled successfully' };
+}
+
+
 }
