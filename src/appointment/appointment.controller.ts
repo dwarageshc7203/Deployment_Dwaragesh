@@ -23,6 +23,7 @@ export class AppointmentController {
   @Post()
   @Roles('patient')
   bookAppointment(@Body() dto: CreateAppointmentDto, @Req() req) {
+    console.log('🆔 Patient user_id from JWT:', req.user.sub);
     return this.appointmentService.bookAppointment(dto, req.user.sub); // use sub as userId
   }
 
