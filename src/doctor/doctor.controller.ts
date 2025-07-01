@@ -1,25 +1,28 @@
+// src/doctor/doctor.controller.ts
 import {
   Body,
   Controller,
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Query,
   UseGuards,
   Req,
-  Patch
+  ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { DoctorService } from './doctor.service';
 import { CreateAvailabilityDto } from 'src/dto/availablity.dto';
 import { JwtAuthGuard } from 'src/common/guards/jwt.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
-import { ForbiddenException } from '@nestjs/common';
 
 @Controller('api/v1/doctors')
 export class DoctorController {
   constructor(private doctorService: DoctorService) {}
+
   @UseGuards(JwtAuthGuard)
   @Get()
   getDoctors(
@@ -28,6 +31,7 @@ export class DoctorController {
   ) {
     return this.doctorService.getDoctors(name, specialization);
   }
+
   @UseGuards(JwtAuthGuard)
   @Get(':id')
   getDoctorByID(@Param('id', ParseIntPipe) id: number) {
@@ -43,6 +47,7 @@ export class DoctorController {
   ) {
     return this.doctorService.createAvailability(doctorId, dto);
   }
+
   @UseGuards(JwtAuthGuard)
   @Get(':id/availability')
   async getAvailability(
@@ -70,5 +75,13 @@ async updateScheduleType(
 
   return this.doctorService.updateScheduleType(+id, body.schedule_Type);
 }
+
+@UseGuards(JwtAuthGuard)
+@Get(':id/timeslots')
+async getDoctorTimeslots(@Param('id', ParseIntPipe) doctorId: number) {
+  return this.doctorService.getDoctorTimeslots(doctorId);
+}
+
+
 
 }

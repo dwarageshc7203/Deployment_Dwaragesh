@@ -21,6 +21,9 @@ export class Appointment {
   @Column()
   time_slot: string;
 
+  @Column({ type: 'varchar', nullable: true })
+  session: 'morning' | 'evening'; // ✅ Add this for session validation
+
   @Column()
   appointment_status: string;
 
@@ -38,4 +41,8 @@ export class Appointment {
 
   @Column({ default: false })
 is_dummy?: boolean;
+
+@Column({ type: 'time', nullable: true })
+reporting_time: string;
+
 }

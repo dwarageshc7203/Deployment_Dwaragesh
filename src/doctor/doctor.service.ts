@@ -100,6 +100,7 @@ export class DoctorService {
       const slotTime = current.format('HH:mm');
       console.log(`Checking slot at ${slotTime} for doctor ${doctorId}`);
 
+      // ✅ Use raw query builder to avoid date mismatch issues
       const existing = await this.slotRepo
         .createQueryBuilder('slot')
         .leftJoin('slot.doctor', 'doctor')
@@ -186,4 +187,12 @@ export class DoctorService {
       relations: ['user'],
     });
   }
+
+  async getDoctorTimeslots(doctorId: number) {
+  return this.slotRepo.find({
+    where: { doctor: { doctor_id: doctorId } },
+    order: { slot_time: 'ASC' },
+  });
+}
+
 }

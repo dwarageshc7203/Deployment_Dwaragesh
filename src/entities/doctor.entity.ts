@@ -55,4 +55,11 @@ export class Doctor {
 
   @Column({ type: 'enum', enum: ['stream', 'wave'], default: 'stream' })
 schedule_Type: 'stream' | 'wave';
+
+@Column({ type: 'int', default: 15 }) // for stream
+slot_duration: number; // in minutes (e.g., 10, 15, 20)
+
+@Column({ type: 'int', nullable: true }) // only for wave
+patients_per_slot?: number;
+
 }
