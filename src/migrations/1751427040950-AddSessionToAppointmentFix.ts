@@ -2,7 +2,7 @@ import { MigrationInterface, QueryRunner } from "typeorm";
 
 export class AddSessionToAppointmentFix1751427040950 implements MigrationInterface {
 
-    name = 'AddSessionToAppointmentFix1751396XXXXX'
+    name = 'AddSessionToAppointmentFix1751427040950'
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
