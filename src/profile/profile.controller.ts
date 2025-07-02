@@ -6,6 +6,8 @@ import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Doctor } from 'src/entities/doctor.entity';
 import { Patient } from 'src/entities/patient.entity';
 import { Repository } from 'typeorm';
+import { Body, Post } from '@nestjs/common';
+import { CreatePatientProfileDto } from 'src/dto/create-patient-profile.dto';
 
 @Controller('api/v1')
 export class ProfileController {
@@ -79,4 +81,29 @@ export class ProfileController {
       medical_history: patient.medical_history,
     };
   }
+  @UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('patient')
+@Post('patient/profile')
+async createPatientProfile(
+  @Req() req: any,
+  @Body() body: CreatePatientProfileDto,
+) {
+  const user_id = req.user.sub;
+  console.log('Creating Patient Profile for User ID:', user_id);
+
+  const existing = await this.patientRepository.findOne({
+    where: { user: { user_id } },
+  });
+  if (existing) {
+    return { message: 'Patient profile already exists.' };
+  }
+
+  const patient = this.patientRepository.create({
+    user: { user_id }, // make sure `user` relation is properly assigned
+    ...body,
+  });
+
+  await this.patientRepository.save(patient);
+  return { message: 'Patient profile created successfully' };
+}
 }
