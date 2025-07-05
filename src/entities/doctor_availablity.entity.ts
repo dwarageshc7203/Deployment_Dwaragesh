@@ -11,6 +11,7 @@ import { Doctor } from './doctor.entity';
 import { Timeslot } from './timeslot.entity';
 
 
+
 @Entity()
 export class DoctorAvailability {
   @PrimaryGeneratedColumn()
