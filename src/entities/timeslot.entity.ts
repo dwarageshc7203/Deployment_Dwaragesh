@@ -40,4 +40,22 @@ session: 'morning' | 'evening';
   @OneToMany(() => Appointment, (appointment) => appointment.time_slot)
 appointments: Appointment[];
 
+@Column({ type: 'time', nullable: true })
+end_time: string;
+
+@Column({ type: 'int', nullable: true })
+patients_per_slot: number;
+
+@Column({ type: 'timestamp', nullable: true })
+booking_start_time: Date;
+
+@Column({ type: 'timestamp', nullable: true })
+booking_end_time: Date;
+
+@Column({ type: 'int', nullable: true })
+slot_duration: number;
+
+@Column({ type: 'int', nullable: true })
+reporting_gap: number;
+
 }

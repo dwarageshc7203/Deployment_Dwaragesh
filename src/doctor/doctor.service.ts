@@ -13,7 +13,6 @@ import { Timeslot } from 'src/entities/timeslot.entity';
 import { DoctorAvailability } from 'src/entities/doctor_availablity.entity';
 import { UpdateSlotDto as UpdateAvailabilityDto } from 'src/dto/update-slot.dto';
 import { Appointment } from 'src/entities/appointment.entity';
-import { CreateManualSlotDto } from 'src/dto/manual-slot.dto';
 
 @Injectable()
 export class DoctorService {
@@ -230,7 +229,7 @@ export class DoctorService {
     return this.availabilityRepo.save(availability);
   }
 
-  async createManualSlot(doctorId: number, dto: CreateManualSlotDto) {
+  /*async createManualSlot(doctorId: number, dto: CreateManualSlotDto) {
     const doctor = await this.doctorRepo.findOne({
       where: { doctor_id: doctorId },
     });
@@ -279,5 +278,5 @@ export class DoctorService {
       message: 'Manual slots created',
       total_slots: slots.length,
     };
-  }
+  }*/
 }

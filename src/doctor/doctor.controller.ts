@@ -19,7 +19,6 @@ import { JwtAuthGuard } from 'src/common/guards/jwt.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { UpdateSlotDto as UpdateAvailabilityDto } from 'src/dto/update-slot.dto';
-import { CreateManualSlotDto } from 'src/dto/manual-slot.dto';
 
 @Controller('api/v1/doctors')
 export class DoctorController {
@@ -93,17 +92,5 @@ async updateAvailability(
 ) {
   return this.doctorService.updateAvailability(doctorId, id, dto);
 }
-
-@Post(':id/slots/manual')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('doctor')
-async createManualSlot(
-  @Param('id', ParseIntPipe) doctorId: number,
-  @Body() dto: CreateManualSlotDto,
-) {
-  return this.doctorService.createManualSlot(doctorId, dto);
-}
-
-
 
 }

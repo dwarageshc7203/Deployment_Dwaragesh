@@ -17,6 +17,7 @@ import { DoctorService } from './doctor/doctor.service';
 import { DoctorModule } from './doctor/doctor.module';
 import { DoctorAvailability } from './entities/doctor_availablity.entity';
 import { AppointmentModule } from './appointment/appointment.module';
+import { TimeslotModule } from './timeslot/timeslot.module';
 
 @Module({
   imports: [
@@ -48,7 +49,8 @@ import { AppointmentModule } from './appointment/appointment.module';
     AuthModule,
 
     DoctorModule,
-    AppointmentModule
+    AppointmentModule,
+    TimeslotModule
   ],
 
   controllers: [
