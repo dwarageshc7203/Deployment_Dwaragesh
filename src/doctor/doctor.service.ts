@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { CreateAvailabilityDto } from 'src/dto/availablity.dto';
@@ -10,6 +11,9 @@ import { MoreThanOrEqual, Repository } from 'typeorm';
 import * as dayjs from 'dayjs';
 import { Timeslot } from 'src/entities/timeslot.entity';
 import { DoctorAvailability } from 'src/entities/doctor_availablity.entity';
+import { UpdateSlotDto as UpdateAvailabilityDto } from 'src/dto/update-slot.dto';
+import { Appointment } from 'src/entities/appointment.entity';
+import { CreateManualSlotDto } from 'src/dto/manual-slot.dto';
 
 @Injectable()
 export class DoctorService {
@@ -22,6 +26,9 @@ export class DoctorService {
 
     @InjectRepository(DoctorAvailability)
     private availabilityRepo: Repository<DoctorAvailability>,
+
+    @InjectRepository(Appointment)
+    private appointmentRepo: Repository<Appointment>,
   ) {}
 
   async getDoctors(name?: string, specialization?: string) {
@@ -85,6 +92,8 @@ export class DoctorService {
       end_time: dto.end_time,
       session: dto.session,
       weekday: dto.weekday,
+      booking_start_time: dto.booking_start_time,
+      booking_end_time: dto.booking_end_time,
     });
 
     const savedAvailability = await this.availabilityRepo.save(availability);
@@ -98,9 +107,7 @@ export class DoctorService {
 
     while (current.isBefore(end)) {
       const slotTime = current.format('HH:mm');
-      console.log(`Checking slot at ${slotTime} for doctor ${doctorId}`);
 
-      // ✅ Use raw query builder to avoid date mismatch issues
       const existing = await this.slotRepo
         .createQueryBuilder('slot')
         .leftJoin('slot.doctor', 'doctor')
@@ -113,14 +120,16 @@ export class DoctorService {
         const slot = this.slotRepo.create({
           doctor,
           availability: savedAvailability,
-          slot_date: dto.date,
+          slot_date: current.format('YYYY-MM-DD'),
           slot_time: slotTime,
           is_available: true,
-          session: dto.session,
+          session:
+            dto.session === 'morning' || dto.session === 'evening'
+              ? dto.session
+              : undefined,
         });
 
         slots.push(slot);
-        console.log(`Creating new slot at ${slotTime}`);
       }
 
       current = current.add(30, 'minute');
@@ -189,10 +198,86 @@ export class DoctorService {
   }
 
   async getDoctorTimeslots(doctorId: number) {
-  return this.slotRepo.find({
-    where: { doctor: { doctor_id: doctorId } },
-    order: { slot_time: 'ASC' },
-  });
-}
+    return this.slotRepo.find({
+      where: { doctor: { doctor_id: doctorId } },
+      order: { slot_time: 'ASC' },
+    });
+  }
 
+  async updateAvailability(doctorId: number, id: number, dto: UpdateAvailabilityDto) {
+    const availability = await this.availabilityRepo.findOne({
+      where: { id },
+      relations: ['slots', 'doctor'],
+    });
+
+    if (!availability) throw new NotFoundException('Availability not found');
+
+    const count = await this.appointmentRepo
+      .createQueryBuilder('a')
+      .leftJoin('a.time_slot', 'slot')
+      .leftJoin('slot.availability', 'avail')
+      .where('a.doctor = :doctorId', { doctorId })
+      .andWhere('a.appointment_status != :status', { status: 'cancelled' })
+      .getCount();
+
+    if (count > 0) {
+      throw new ConflictException(
+        'You cannot modify this slot because an appointment is already booked in this session.',
+      );
+    }
+
+    Object.assign(availability, dto);
+    return this.availabilityRepo.save(availability);
+  }
+
+  async createManualSlot(doctorId: number, dto: CreateManualSlotDto) {
+    const doctor = await this.doctorRepo.findOne({
+      where: { doctor_id: doctorId },
+    });
+
+    if (!doctor) {
+      throw new NotFoundException('Doctor not found');
+    }
+
+    const slotDurationInMinutes = dayjs(`${dto.date}T${dto.end_time}`).diff(
+      dayjs(`${dto.date}T${dto.start_time}`),
+      'minute',
+    );
+
+    if (slotDurationInMinutes <= 0 || dto.patients_per_slot <= 0) {
+      throw new BadRequestException('Invalid time range or patients_per_slot');
+    }
+
+    const slotInterval = Math.floor(
+      slotDurationInMinutes / dto.patients_per_slot,
+    );
+
+    const slots: Timeslot[] = [];
+    let current = dayjs(`${dto.date}T${dto.start_time}`);
+
+    for (let i = 0; i < dto.patients_per_slot; i++) {
+      const slotTime = current.format('HH:mm');
+
+      const slot = this.slotRepo.create({
+        doctor,
+        slot_date: current.format('YYYY-MM-DD'),
+        slot_time: slotTime,
+        is_available: true,
+        session:
+          dto.session === 'morning' || dto.session === 'evening'
+            ? dto.session
+            : undefined,
+      });
+
+      slots.push(slot);
+      current = current.add(slotInterval, 'minute');
+    }
+
+    await this.slotRepo.save(slots);
+
+    return {
+      message: 'Manual slots created',
+      total_slots: slots.length,
+    };
+  }
 }

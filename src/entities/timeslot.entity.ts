@@ -4,9 +4,11 @@ import {
   PrimaryGeneratedColumn,
   ManyToOne,
   JoinColumn,
+  OneToMany
 } from 'typeorm';
 import { Doctor } from './doctor.entity';
 import { DoctorAvailability } from './doctor_availablity.entity';
+import { Appointment } from './appointment.entity';
 
 @Entity()
 export class Timeslot {
@@ -32,6 +34,10 @@ export class Timeslot {
   @Column({ default: true })
   is_available: boolean;
 
-  @Column({ nullable: true })
-  session: string;
+  @Column({ nullable: true, type: 'varchar' })
+session: 'morning' | 'evening';
+
+  @OneToMany(() => Appointment, (appointment) => appointment.time_slot)
+appointments: Appointment[];
+
 }

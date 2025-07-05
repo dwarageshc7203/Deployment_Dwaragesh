@@ -1,18 +1,29 @@
-import { IsDateString, IsNotEmpty } from 'class-validator';
+import { IsDateString, IsNotEmpty, IsOptional, IsIn } from 'class-validator';
 
 export class CreateAppointmentDto {
   @IsNotEmpty()
   doctor_id: number;
 
   @IsNotEmpty()
-  @IsDateString()
-  slot_date: string;  // ✅ renamed from `date`
+  slot_id: number; // This must be the ID of the selected Timeslot
 
   @IsNotEmpty()
-  slot_time: string;  // ✅ renamed from `start_time`
+  @IsDateString()
+  slot_date: string;  // Used only for validation and reporting_time logic
 
-  end_time?: string;
+  @IsNotEmpty()
+  slot_time: string;  // Used only for validation and reporting_time logic
+
+  @IsOptional()
+  @IsIn(['morning', 'evening'])
   session?: 'morning' | 'evening';
+
+  @IsOptional()
   reason?: string;
+
+  @IsOptional()
   notes?: string;
+
+  @IsOptional()
+  end_time?: string;
 }

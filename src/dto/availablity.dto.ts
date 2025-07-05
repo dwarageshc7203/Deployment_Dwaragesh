@@ -1,7 +1,29 @@
+// dto/availablity.dto.ts
+import { IsOptional, IsString } from 'class-validator';
+
 export class CreateAvailabilityDto {
-  date: string; // e.g. "2025-06-24"
-  start_time: string; // e.g. "10:00"
-  end_time: string; // e.g. "13:00"
-  session?: 'morning' | 'evening';
+  @IsString()
+  date: string;
+
+  @IsString()
+  start_time: string;
+
+  @IsString()
+  end_time: string;
+
+  @IsOptional()
+  @IsString()
+  session?: string;
+
+  @IsOptional()
+  @IsString()
   weekday?: string;
+
+  @IsOptional()
+  @IsString()
+  booking_start_time?: string;
+
+  @IsOptional()
+  @IsString()
+  booking_end_time?: string;
 }

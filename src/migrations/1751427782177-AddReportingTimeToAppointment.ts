@@ -4,9 +4,9 @@ export class AddReportingTimeToAppointment1751427782177 implements MigrationInte
     name = 'AddReportingTimeToAppointment1751427782177'
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`
+    /*await queryRunner.query(`
       ALTER TABLE "appointment" ADD COLUMN "reporting_time" VARCHAR(10)
-    `);
+    `);*/
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

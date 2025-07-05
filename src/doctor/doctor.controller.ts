@@ -18,10 +18,12 @@ import { CreateAvailabilityDto } from 'src/dto/availablity.dto';
 import { JwtAuthGuard } from 'src/common/guards/jwt.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
+import { UpdateSlotDto as UpdateAvailabilityDto } from 'src/dto/update-slot.dto';
+import { CreateManualSlotDto } from 'src/dto/manual-slot.dto';
 
 @Controller('api/v1/doctors')
 export class DoctorController {
-  constructor(private doctorService: DoctorService) {}
+  constructor(private doctorService: DoctorService){}
 
   @UseGuards(JwtAuthGuard)
   @Get()
@@ -80,6 +82,26 @@ async updateScheduleType(
 @Get(':id/timeslots')
 async getDoctorTimeslots(@Param('id', ParseIntPipe) doctorId: number) {
   return this.doctorService.getDoctorTimeslots(doctorId);
+}
+
+// Shortened view: only new/important part shown
+@Patch(':doctorId/availability/:id')
+async updateAvailability(
+  @Param('doctorId') doctorId: number,
+  @Param('id') id: number,
+  @Body() dto: UpdateAvailabilityDto,
+) {
+  return this.doctorService.updateAvailability(doctorId, id, dto);
+}
+
+@Post(':id/slots/manual')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('doctor')
+async createManualSlot(
+  @Param('id', ParseIntPipe) doctorId: number,
+  @Body() dto: CreateManualSlotDto,
+) {
+  return this.doctorService.createManualSlot(doctorId, dto);
 }
 
 

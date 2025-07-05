@@ -1,6 +1,14 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 import { Doctor } from './doctor.entity';
 import { Patient } from './patient.entity';
+import { Timeslot } from './timeslot.entity';
 
 @Entity()
 export class Appointment {
@@ -15,19 +23,20 @@ export class Appointment {
   @JoinColumn({ name: 'patient_id' })
   patient: Patient;
 
-  @Column()
+  @Column({ type: 'date' })
   appointment_date: Date;
 
-  @Column()
-  time_slot: string;
+  @ManyToOne(() => Timeslot, (slot) => slot.appointments, { eager: true })
+  @JoinColumn({ name: 'slot_id' })
+  time_slot: Timeslot;
 
-  @Column({ type: 'varchar', nullable: true })
-  session: 'morning' | 'evening'; // ✅ Add this for session validation
+  @Column({ type: 'enum', enum: ['morning', 'evening'], nullable: true })
+  session: 'morning' | 'evening';
 
-  @Column()
+  @Column({ type: 'varchar' })
   appointment_status: string;
 
-  @Column()
+  @Column({ type: 'varchar' })
   reason: string;
 
   @Column('text')
@@ -40,9 +49,8 @@ export class Appointment {
   updated_at: Date;
 
   @Column({ default: false })
-is_dummy?: boolean;
+  is_dummy?: boolean;
 
-@Column({ type: 'time', nullable: true })
-reporting_time: string;
-
+  @Column({ type: 'time', nullable: true })
+  reporting_time: string;
 }

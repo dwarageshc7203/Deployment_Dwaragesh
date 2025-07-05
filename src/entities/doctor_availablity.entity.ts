@@ -37,4 +37,11 @@ export class DoctorAvailability {
 
   @OneToMany(() => Timeslot, (slot) => slot.availability)
   slots: Timeslot[];
+
+  @Column({ type: 'time', nullable: true })
+booking_start_time: string;
+
+@Column({ type: 'time', nullable: true })
+booking_end_time: string;
+
 }

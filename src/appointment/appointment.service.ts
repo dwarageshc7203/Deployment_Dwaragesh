@@ -11,6 +11,7 @@ import { Appointment } from 'src/entities/appointment.entity';
 import { Doctor } from 'src/entities/doctor.entity';
 import { Patient } from 'src/entities/patient.entity';
 import { CreateAppointmentDto } from 'src/dto/CreateAppointmentDto';
+import { Timeslot } from 'src/entities/timeslot.entity';
 
 @Injectable()
 export class AppointmentService {
@@ -23,6 +24,9 @@ export class AppointmentService {
 
     @InjectRepository(Patient)
     private patientRepo: Repository<Patient>,
+
+    @InjectRepository(Timeslot)
+    private timeslotRepo: Repository<Timeslot>,
   ) {}
 
   async bookAppointment(dto: CreateAppointmentDto, patientId: number) {
@@ -31,7 +35,16 @@ export class AppointmentService {
     });
     if (!doctor) throw new NotFoundException('Doctor not found');
 
-    const appointmentDate = dayjs(dto.slot_date);
+    const slot = await this.timeslotRepo.findOne({
+      where: { slot_id: dto.slot_id },
+      relations: ['doctor'],
+    });
+
+    if (!slot || slot.doctor.doctor_id !== dto.doctor_id) {
+      throw new NotFoundException('Invalid slot for this doctor');
+    }
+
+    const appointmentDate = dayjs(slot.slot_date);
     if (!appointmentDate.isValid()) {
       throw new ConflictException('Invalid appointment date');
     }
@@ -40,26 +53,24 @@ export class AppointmentService {
       throw new ConflictException('Cannot book an appointment in the past');
     }
 
-    if (!dto.slot_time) {
+    if (!slot.slot_time) {
       throw new ConflictException('Invalid appointment time');
     }
 
-    if (!dto.session || !['morning', 'evening'].includes(dto.session)) {
+    const session = slot.session ?? dto.session;
+    if (!session || !['morning', 'evening'].includes(session)) {
       throw new ConflictException('Invalid session: must be "morning" or "evening"');
     }
 
     const existing = await this.appointmentRepo
       .createQueryBuilder('appointment')
-      .leftJoin('appointment.doctor', 'doctor')
-      .where('doctor.doctor_id = :doctorId', { doctorId: dto.doctor_id })
-      .andWhere('appointment.appointment_date = :date', { date: dto.slot_date })
-      .andWhere('appointment.time_slot = :slot', { slot: dto.slot_time })
+      .leftJoin('appointment.time_slot', 'slot')
+      .where('slot.slot_id = :slotId', { slotId: slot.slot_id })
       .andWhere('appointment.appointment_status != :status', { status: 'cancelled' })
       .orderBy('appointment.created_at', 'ASC')
       .getMany();
 
-    // 📌 Initialize reportingTime before any conditional usage
-    let reportingTime = dto.slot_time;
+    let reportingTime = slot.slot_time;
 
     if (doctor.schedule_Type === 'stream') {
       if (existing.length > 0) {
@@ -75,7 +86,7 @@ export class AppointmentService {
         throw new ConflictException('Wave slot is full');
       }
 
-      const base = dayjs(`${dto.slot_date} ${dto.slot_time}`);
+      const base = dayjs(`${slot.slot_date} ${slot.slot_time}`);
       const gap = Math.floor(slotDuration / patientsPerSlot);
       reportingTime = base.add(gap * existing.length, 'minute').format('HH:mm:ss');
     }
@@ -85,30 +96,30 @@ export class AppointmentService {
     });
     if (!patient) throw new NotFoundException('Patient not found');
 
-    // ❗ Validation: One booking per session per day with same doctor
     const existingSessionBooking = await this.appointmentRepo
       .createQueryBuilder('appointment')
       .leftJoin('appointment.patient', 'patient')
-      .leftJoin('appointment.doctor', 'doctor')
+      .leftJoin('appointment.time_slot', 'slot')
+      .leftJoin('slot.doctor', 'doctor')
       .where('patient.patient_id = :patientId', { patientId: patient.patient_id })
       .andWhere('doctor.doctor_id = :doctorId', { doctorId: dto.doctor_id })
-      .andWhere('appointment.appointment_date = :date', { date: dto.slot_date })
-      .andWhere('appointment.session = :session', { session: dto.session })
+      .andWhere('slot.slot_date = :date', { date: slot.slot_date })
+      .andWhere('slot.session = :session', { session })
       .andWhere('appointment.appointment_status != :status', { status: 'cancelled' })
       .getOne();
 
     if (existingSessionBooking) {
       throw new ConflictException(
-        `You already have an appointment with this doctor in the ${dto.session} session on ${dto.slot_date}`,
+        `You already have an appointment with this doctor in the ${session} session on ${slot.slot_date}`,
       );
     }
 
     const appointment = this.appointmentRepo.create({
       doctor,
       patient,
-      appointment_date: dto.slot_date,
-      time_slot: dto.slot_time,
-      session: dto.session,
+      appointment_date: slot.slot_date,
+      time_slot: slot,
+      session: session as 'morning' | 'evening',
       appointment_status: 'confirmed',
       reason: dto.reason || '',
       notes: dto.notes || '',
@@ -134,7 +145,7 @@ export class AppointmentService {
 
     return this.appointmentRepo.find({
       where: whereClause,
-      relations: ['doctor', 'patient'],
+      relations: ['doctor', 'patient', 'time_slot'],
       order: { appointment_date: 'ASC' },
     });
   }
@@ -160,7 +171,7 @@ export class AppointmentService {
 
     return this.appointmentRepo.find({
       where: whereClause,
-      relations: ['doctor', 'patient'],
+      relations: ['doctor', 'patient', 'time_slot'],
       order: { appointment_date: 'ASC' },
     });
   }
