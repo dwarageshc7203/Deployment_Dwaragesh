@@ -150,20 +150,18 @@ export class DoctorService {
 
     const today = dayjs().startOf('day').toDate();
 
-    const [slots, total] = await this.slotRepo.findAndCount({
-      where: {
-        doctor: { doctor_id: doctorId },
-        is_available: true,
-        slot_date: MoreThanOrEqual(today),
-      },
-      relations: ['availability'],
-      order: {
-        slot_date: 'ASC',
-        slot_time: 'ASC',
-      },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
+    const [slots, total] = await this.slotRepo
+  .createQueryBuilder('slot')
+  .leftJoinAndSelect('slot.availability', 'availability')
+  .where('slot.doctor = :doctorId', { doctorId })
+  .andWhere('slot.is_available = true')
+  .andWhere('slot.slot_date >= :today', { today })
+  .orderBy('slot.slot_date', 'ASC')
+  .addOrderBy('slot.slot_time', 'ASC')
+  .skip((page - 1) * limit)
+  .take(limit)
+  .getManyAndCount();
+
 
     const grouped = slots.reduce((acc, slot) => {
       const date = new Date(slot.slot_date).toISOString().split('T')[0];
