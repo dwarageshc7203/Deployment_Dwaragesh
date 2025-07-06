@@ -28,18 +28,22 @@ private doctorRepo: Repository<Doctor>,
 
   ) {}
 
-async createManualSlot(doctorId: number, dto: CreateSlotDto) {
+async createManualSlot(doctorId: number, dto: CreateSlotDto, userId: number) {
   const doctor = await this.doctorRepo.findOne({
     where: { doctor_id: doctorId },
+    relations: ['user'], // make sure to include user relation
   });
 
   if (!doctor) {
     throw new NotFoundException('Doctor not found');
   }
 
+  if (doctor.user.user_id !== userId) {
+    throw new UnauthorizedException('You are not allowed to create slot for this doctor');
+  }
+
   const start = dayjs(`${dto.date}T${dto.start_time}`);
   const end = dayjs(`${dto.date}T${dto.end_time}`);
-
   const slotDuration = end.diff(start, 'minute');
 
   if (slotDuration <= 0 || dto.patients_per_slot <= 0) {
@@ -51,12 +55,11 @@ async createManualSlot(doctorId: number, dto: CreateSlotDto) {
   const slot = this.slotRepo.create({
     doctor,
     slot_date: new Date(dto.date),
-    slot_time: dto.start_time, // Only time string (e.g., "11:00")
-    end_time: dto.end_time,     // Only time string (e.g., "13:00")
+    slot_time: dto.start_time,
+    end_time: dto.end_time,
     patients_per_slot: dto.patients_per_slot,
     slot_duration: slotDuration,
-reporting_gap: reporting_gap,
-
+    reporting_gap,
     is_available: true,
     session: dto.session === 'morning' || dto.session === 'evening' ? dto.session : undefined,
     booking_start_time: dayjs(`${dto.date}T${dto.booking_start_time}`).toDate(),
@@ -71,7 +74,6 @@ reporting_gap: reporting_gap,
     reporting_gap,
   };
 }
-
   async canEditOrDeleteSlot(slotId: number): Promise<void> {
     const count = await this.appointmentRepo.count({
       where: {

@@ -20,14 +20,15 @@ export class TimeslotController {
   constructor(private readonly timeslotService: TimeslotService) {}
 
   @Post()
-  @Roles('doctor')
-  createSlot(
-    @Param('doctorId') doctorId: number,
-    @Body() dto: CreateSlotDto,
-    @Req() req,
-  ) {
-    return this.timeslotService.createManualSlot(doctorId, dto, req.user.sub);
-  }
+@Roles('doctor')
+createSlot(
+  @Param('doctorId') doctorId: number,
+  @Body() dto: CreateSlotDto,
+  @Req() req,
+) {
+  return this.timeslotService.createManualSlot(doctorId, dto, req.user.sub);
+}
+
 
   @Patch(':slotId')
   @Roles('doctor')
