@@ -48,18 +48,25 @@ async createManualSlot(doctorId: number, dto: CreateSlotDto, userId: number) {
     throw new ConflictException('End time must be after start time');
   }
 
+  // Handle booking window
   let bookingStart = start;
   if (booking_start_time) {
     const parsedBookingStart = dayjs(`${date} ${booking_start_time}`);
-    if (parsedBookingStart.isValid()) bookingStart = parsedBookingStart;
-    else throw new ConflictException('Invalid booking_start_time');
+    if (parsedBookingStart.isValid()) {
+      bookingStart = parsedBookingStart;
+    } else {
+      throw new ConflictException('Invalid booking_start_time');
+    }
   }
 
   let bookingEnd = end;
   if (booking_end_time) {
     const parsedBookingEnd = dayjs(`${date} ${booking_end_time}`);
-    if (parsedBookingEnd.isValid()) bookingEnd = parsedBookingEnd;
-    else throw new ConflictException('Invalid booking_end_time');
+    if (parsedBookingEnd.isValid()) {
+      bookingEnd = parsedBookingEnd;
+    } else {
+      throw new ConflictException('Invalid booking_end_time');
+    }
   }
 
   if (bookingEnd.isBefore(bookingStart)) {
@@ -75,12 +82,12 @@ async createManualSlot(doctorId: number, dto: CreateSlotDto, userId: number) {
 
   const slot = this.slotRepo.create({
     doctor: { doctor_id: doctorId },
-    slot_date: start.toDate(),
-    slot_time: start.format('HH:mm'),
-    end_time: end.format('HH:mm'),
+    slot_date: start.toDate(),                      // DATE type
+    slot_time: start.format('HH:mm'),               // TIME type
+    end_time: end.format('HH:mm'),                  // TIME type
     patients_per_slot,
-    booking_start_time: bookingStart.format('HH:mm'), // ⬅️ Use this if column is `time`
-    booking_end_time: bookingEnd.format('HH:mm'),     // ⬅️ Use this if column is `time`
+    booking_start_time: bookingStart.toDate(),      // TIMESTAMP type
+    booking_end_time: bookingEnd.toDate(),          // TIMESTAMP type
     slot_duration: slotDuration,
     reporting_gap,
   });
@@ -130,30 +137,49 @@ async createManualSlot(doctorId: number, dto: CreateSlotDto, userId: number) {
 
   await this.canEditOrDeleteSlot(slotId);
 
-  if (dto.start_time && dto.end_time && dto.patients_per_slot) {
-    const start = dayjs(`${slot.slot_date} ${dto.start_time}`);
-    const end = dayjs(`${slot.slot_date} ${dto.end_time}`);
+  // Handle time slot updates
+  let start = dayjs(`${slot.slot_date.toISOString().split('T')[0]} ${dto.start_time ?? slot.slot_time}`);
+  let end = dayjs(`${slot.slot_date.toISOString().split('T')[0]} ${dto.end_time ?? slot.end_time}`);
 
+  if ((dto.start_time || dto.end_time || dto.patients_per_slot)) {
     if (!start.isValid() || !end.isValid() || end.isBefore(start)) {
       throw new ConflictException('Invalid start_time or end_time');
     }
 
     const slotDuration = end.diff(start, 'minute');
-    const reporting_gap = Math.floor(slotDuration / dto.patients_per_slot);
+    const reporting_gap = Math.floor(
+      slotDuration / (dto.patients_per_slot ?? slot.patients_per_slot),
+    );
 
-    slot.slot_time = dto.start_time;
-    slot.end_time = dto.end_time;
-    slot.patients_per_slot = dto.patients_per_slot;
+    if (dto.start_time) {
+      slot.slot_time = start.format('HH:mm');
+    }
+    if (dto.end_time) {
+      slot.end_time = end.format('HH:mm');
+    }
+    if (dto.patients_per_slot) {
+      slot.patients_per_slot = dto.patients_per_slot;
+    }
+
     slot.slot_duration = slotDuration;
     slot.reporting_gap = reporting_gap;
   }
 
+  // Handle booking window updates
   if (dto.booking_start_time) {
-    slot.booking_start_time = dayjs(`${slot.slot_date} ${dto.booking_start_time}`).toDate();
+    const parsedBookingStart = dayjs(`${slot.slot_date.toISOString().split('T')[0]} ${dto.booking_start_time}`);
+    if (!parsedBookingStart.isValid()) {
+      throw new ConflictException('Invalid booking_start_time');
+    }
+    slot.booking_start_time = parsedBookingStart.toDate(); // timestamp column
   }
 
   if (dto.booking_end_time) {
-    slot.booking_end_time = dayjs(`${slot.slot_date} ${dto.booking_end_time}`).toDate();
+    const parsedBookingEnd = dayjs(`${slot.slot_date.toISOString().split('T')[0]} ${dto.booking_end_time}`);
+    if (!parsedBookingEnd.isValid()) {
+      throw new ConflictException('Invalid booking_end_time');
+    }
+    slot.booking_end_time = parsedBookingEnd.toDate(); // timestamp column
   }
 
   return await this.slotRepo.save(slot);
