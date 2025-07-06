@@ -40,23 +40,26 @@ async createManualSlot(doctorId: number, dto: CreateSlotDto, userId: number) {
   const start = dayjs(`${date} ${start_time}`);
   const end = dayjs(`${date} ${end_time}`);
 
-  // Fallback: use slot start/end if booking window is not provided
-  const bookingStart = booking_start_time
-    ? dayjs(`${date} ${booking_start_time}`)
-    : start;
-
-  const bookingEnd = booking_end_time
-    ? dayjs(`${date} ${booking_end_time}`)
-    : end;
-
-  // Validate all dayjs instances
-  if (!start.isValid() || !end.isValid() || !bookingStart.isValid() || !bookingEnd.isValid()) {
-    throw new ConflictException('Invalid date or time format');
+  if (!start.isValid() || !end.isValid()) {
+    throw new ConflictException('Invalid start_time or end_time');
   }
 
   if (end.isBefore(start)) {
     throw new ConflictException('End time must be after start time');
   }
+
+  // Parse booking times if provided and valid, else fallback
+  let bookingStart = booking_start_time
+    ? dayjs(`${date} ${booking_start_time}`)
+    : start;
+
+  if (!bookingStart.isValid()) bookingStart = start;
+
+  let bookingEnd = booking_end_time
+    ? dayjs(`${date} ${booking_end_time}`)
+    : end;
+
+  if (!bookingEnd.isValid()) bookingEnd = end;
 
   if (bookingEnd.isBefore(bookingStart)) {
     throw new ConflictException('Booking end time must be after booking start time');
@@ -83,10 +86,6 @@ async createManualSlot(doctorId: number, dto: CreateSlotDto, userId: number) {
 
   return await this.slotRepo.save(slot);
 }
-
-
-
-
 
   async canEditOrDeleteSlot(slotId: number): Promise<void> {
     const count = await this.appointmentRepo.count({
