@@ -28,33 +28,46 @@ private doctorRepo: Repository<Doctor>,
   ) {}
 
   async createManualSlot(doctorId: number, dto: CreateSlotDto, userId: number) {
-    const { start_time, end_time, date, patients_per_slot, booking_start_time, booking_end_time } = dto;
+  const {
+    start_time,
+    end_time,
+    date,
+    patients_per_slot,
+    booking_start_time,
+    booking_end_time
+  } = dto;
 
-    const slotDuration = dayjs(`${date} ${end_time}`).diff(
-      dayjs(`${date} ${start_time}`),
-      'minute',
-    );
+  const start = dayjs(`${date} ${start_time}`);
+  const end = dayjs(`${date} ${end_time}`);
+  const bookingStart = dayjs(`${date} ${booking_start_time}`);
+  const bookingEnd = dayjs(`${date} ${booking_end_time}`);
 
-    if (slotDuration <= 0) {
-      throw new ConflictException('End time must be after start time');
-    }
-
-    const reporting_gap = Math.floor(slotDuration / patients_per_slot);
-
-    const slot = this.slotRepo.create({
-      doctor: { doctor_id: doctorId },
-      slot_date: date,
-      slot_time: start_time,
-      end_time,
-      patients_per_slot,
-      booking_start_time,
-      booking_end_time,
-      slot_duration: slotDuration,
-      reporting_gap,
-    });
-
-    return await this.slotRepo.save(slot);
+  if (!start.isValid() || !end.isValid() || !bookingStart.isValid() || !bookingEnd.isValid()) {
+    throw new ConflictException('Invalid date or time format');
   }
+
+  const slotDuration = end.diff(start, 'minute');
+  if (slotDuration <= 0) {
+    throw new ConflictException('End time must be after start time');
+  }
+
+  const reporting_gap = Math.floor(slotDuration / patients_per_slot);
+
+  const slot = this.slotRepo.create({
+    doctor: { doctor_id: doctorId },
+    slot_date: date,
+    slot_time: start_time,
+    end_time,
+    patients_per_slot,
+    booking_start_time,
+    booking_end_time,
+    slot_duration: slotDuration,
+    reporting_gap,
+  });
+
+  return await this.slotRepo.save(slot);
+}
+
 
   async canEditOrDeleteSlot(slotId: number): Promise<void> {
     const count = await this.appointmentRepo.count({
