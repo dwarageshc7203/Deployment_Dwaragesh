@@ -44,17 +44,18 @@ export class Timeslot {
   @Column({ type: 'int', nullable: true })
   patients_per_slot: number;
 
-  @Column({ type: 'timestamp' })
+  @Column({ type: 'timestamp', nullable: true })
 booking_start_time: Date;
 
-@Column({ type: 'timestamp' })
+@Column({ type: 'timestamp', nullable: true })
 booking_end_time: Date;
+
 
 
   @Column({ type: 'int', nullable: true })
   slot_duration: number;
 
-  @Column({ type: 'int', nullable: true })
+  @Column({ type: 'int', nullable: true }) 
   reporting_gap: number;
 
   @Column({ nullable: true, type: 'varchar' })
