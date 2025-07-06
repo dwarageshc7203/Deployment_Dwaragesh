@@ -48,10 +48,10 @@ export class Timeslot {
   patients_per_slot: number;
 
   @Column({ type: 'timestamp', nullable: true })
-  booking_start_time: Date;
+  booking_start_time: Date | string;
 
   @Column({ type: 'timestamp', nullable: true })
-  booking_end_time: Date;
+  booking_end_time: Date | string;
 
   @Column({ type: 'int', nullable: true })
   slot_duration: number;

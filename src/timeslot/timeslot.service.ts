@@ -57,12 +57,14 @@ async createManualSlot(doctorId: number, dto: CreateSlotDto, userId: number) {
   if (booking_start_time) {
     const parsedBookingStart = dayjs(`${date} ${booking_start_time}`);
     if (parsedBookingStart.isValid()) bookingStart = parsedBookingStart;
+    else throw new ConflictException('Invalid booking_start_time');
   }
 
   let bookingEnd = end;
   if (booking_end_time) {
     const parsedBookingEnd = dayjs(`${date} ${booking_end_time}`);
     if (parsedBookingEnd.isValid()) bookingEnd = parsedBookingEnd;
+    else throw new ConflictException('Invalid booking_end_time');
   }
 
   console.log('Booking start:', bookingStart.toISOString(), '| Valid:', bookingStart.isValid());
@@ -84,12 +86,12 @@ async createManualSlot(doctorId: number, dto: CreateSlotDto, userId: number) {
 
   const slot = this.slotRepo.create({
     doctor: { doctor_id: doctorId },
-    slot_date: date,
+    slot_date: new Date(date),
     slot_time: start.format('HH:mm'),
     end_time: end.format('HH:mm'),
     patients_per_slot,
-    booking_start_time: bookingStart.format('HH:mm'),
-    booking_end_time: bookingEnd.format('HH:mm'),
+    booking_start_time: bookingStart.toDate(), // ✅ Correct: Date object
+    booking_end_time: bookingEnd.toDate(),     // ✅ Correct: Date object
     slot_duration: slotDuration,
     reporting_gap,
   });
@@ -98,6 +100,7 @@ async createManualSlot(doctorId: number, dto: CreateSlotDto, userId: number) {
 
   return await this.slotRepo.save(slot);
 }
+
 
   async canEditOrDeleteSlot(slotId: number): Promise<void> {
     const count = await this.appointmentRepo.count({
