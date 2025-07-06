@@ -53,15 +53,16 @@ async createManualSlot(doctorId: number, dto: CreateSlotDto, userId: number) {
     throw new ConflictException('End time must be after start time');
   }
 
-  // Safe fallback logic for booking times
   let bookingStart = start;
-  if (booking_start_time && dayjs(`${date} ${booking_start_time}`).isValid()) {
-    bookingStart = dayjs(`${date} ${booking_start_time}`);
+  if (booking_start_time) {
+    const parsedBookingStart = dayjs(`${date} ${booking_start_time}`);
+    if (parsedBookingStart.isValid()) bookingStart = parsedBookingStart;
   }
 
   let bookingEnd = end;
-  if (booking_end_time && dayjs(`${date} ${booking_end_time}`).isValid()) {
-    bookingEnd = dayjs(`${date} ${booking_end_time}`);
+  if (booking_end_time) {
+    const parsedBookingEnd = dayjs(`${date} ${booking_end_time}`);
+    if (parsedBookingEnd.isValid()) bookingEnd = parsedBookingEnd;
   }
 
   console.log('Booking start:', bookingStart.toISOString(), '| Valid:', bookingStart.isValid());
