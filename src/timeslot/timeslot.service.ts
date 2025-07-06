@@ -86,7 +86,7 @@ async createManualSlot(doctorId: number, dto: CreateSlotDto, userId: number) {
 
   const slot = this.slotRepo.create({
     doctor: { doctor_id: doctorId },
-    slot_date: new Date(date),
+    slot_date: start.toDate(), // or `dayjs(date).toDate()` if you only want the date portion
     slot_time: start.format('HH:mm'),
     end_time: end.format('HH:mm'),
     patients_per_slot,
@@ -144,25 +144,34 @@ async createManualSlot(doctorId: number, dto: CreateSlotDto, userId: number) {
 
   await this.canEditOrDeleteSlot(slotId);
 
-  // Recalculate slot_duration and reporting_gap if relevant fields changed
   if (dto.start_time && dto.end_time && dto.patients_per_slot) {
-    const slotDuration = dayjs(`${slot.slot_date} ${dto.end_time}`).diff(
-      dayjs(`${slot.slot_date} ${dto.start_time}`),
-      'minute',
-    );
-    if (slotDuration <= 0) {
-      throw new ConflictException('End time must be after start time');
+    const start = dayjs(`${slot.slot_date} ${dto.start_time}`);
+    const end = dayjs(`${slot.slot_date} ${dto.end_time}`);
+
+    if (!start.isValid() || !end.isValid() || end.isBefore(start)) {
+      throw new ConflictException('Invalid start_time or end_time');
     }
 
-    Object.assign(slot, dto);
+    const slotDuration = end.diff(start, 'minute');
+    const reporting_gap = Math.floor(slotDuration / dto.patients_per_slot);
 
-slot.slot_duration = slotDuration;
-slot.reporting_gap = Math.floor(slotDuration / dto.patients_per_slot);
-
+    slot.slot_time = dto.start_time;
+    slot.end_time = dto.end_time;
+    slot.patients_per_slot = dto.patients_per_slot;
+    slot.slot_duration = slotDuration;
+    slot.reporting_gap = reporting_gap;
   }
 
-  Object.assign(slot, dto);
+  if (dto.booking_start_time) {
+    slot.booking_start_time = dayjs(`${slot.slot_date} ${dto.booking_start_time}`).toDate();
+  }
+
+  if (dto.booking_end_time) {
+    slot.booking_end_time = dayjs(`${slot.slot_date} ${dto.booking_end_time}`).toDate();
+  }
+
   return await this.slotRepo.save(slot);
 }
+
 
 }
