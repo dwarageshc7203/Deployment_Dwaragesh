@@ -50,7 +50,7 @@ export class TimeslotService {
 
     const slot = this.slotRepo.create({
       doctor,
-      slot_date: new Date(dto.date),
+      slot_date: dayjs(dto.date, 'YYYY-MM-DD').toDate(),
       slot_time: dto.start_time,
       end_time: dto.end_time,
       patients_per_slot: dto.patients_per_slot,
