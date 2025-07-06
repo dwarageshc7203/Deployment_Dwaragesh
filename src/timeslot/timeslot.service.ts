@@ -34,22 +34,35 @@ async createManualSlot(doctorId: number, dto: CreateSlotDto, userId: number) {
     date,
     patients_per_slot,
     booking_start_time,
-    booking_end_time
+    booking_end_time,
   } = dto;
+
+  if (!start_time || !end_time || !date || !patients_per_slot) {
+    throw new ConflictException('Missing required fields');
+  }
 
   const start = dayjs(`${date} ${start_time}`);
   const end = dayjs(`${date} ${end_time}`);
-  const bookingStart = dayjs(`${date} ${booking_start_time}`);
-  const bookingEnd = dayjs(`${date} ${booking_end_time}`);
 
-  // Check for invalid time/date formats
-  if (!start.isValid() || !end.isValid() || !bookingStart.isValid() || !bookingEnd.isValid()) {
-    throw new ConflictException('Invalid date or time format');
+  if (!start.isValid() || !end.isValid()) {
+    throw new ConflictException('Invalid start or end time format');
   }
 
   const slotDuration = end.diff(start, 'minute');
   if (slotDuration <= 0) {
     throw new ConflictException('End time must be after start time');
+  }
+
+  const bookingStart = booking_start_time
+    ? dayjs(`${date} ${booking_start_time}`)
+    : start;
+
+  const bookingEnd = booking_end_time
+    ? dayjs(`${date} ${booking_end_time}`)
+    : end;
+
+  if (!bookingStart.isValid() || !bookingEnd.isValid()) {
+    throw new ConflictException('Invalid booking window time format');
   }
 
   const reporting_gap = Math.floor(slotDuration / patients_per_slot);
@@ -60,14 +73,15 @@ async createManualSlot(doctorId: number, dto: CreateSlotDto, userId: number) {
     slot_time: start.format('HH:mm'),
     end_time: end.format('HH:mm'),
     patients_per_slot,
-    booking_start_time: bookingStart.format('HH:mm'),  // ✅ Fix here
-    booking_end_time: bookingEnd.format('HH:mm'),      // ✅ Fix here
+    booking_start_time: bookingStart.format('HH:mm'),
+    booking_end_time: bookingEnd.format('HH:mm'),
     slot_duration: slotDuration,
     reporting_gap,
   });
 
   return await this.slotRepo.save(slot);
 }
+
 
 
 
