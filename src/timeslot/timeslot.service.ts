@@ -27,7 +27,11 @@ private doctorRepo: Repository<Doctor>,
 
   ) {}
 
-async createManualSlot(doctorId: number, dto: CreateSlotDto, userId: number) {
+async createManualSlot(
+  doctorId: number,
+  dto: CreateSlotDto,
+  userId: number,
+): Promise<Timeslot> {
   const {
     start_time,
     end_time,
@@ -37,26 +41,26 @@ async createManualSlot(doctorId: number, dto: CreateSlotDto, userId: number) {
     booking_end_time,
   } = dto;
 
-  const start = dayjs(`${date} ${start_time}`);
-  const end = dayjs(`${date} ${end_time}`);
+  const start = dayjs(`${date} ${start_time}`, 'YYYY-MM-DD HH:mm');
+  const end = dayjs(`${date} ${end_time}`, 'YYYY-MM-DD HH:mm');
 
   if (!start.isValid() || !end.isValid()) {
-    throw new ConflictException('Invalid start_time or end_time');
+    throw new ConflictException('Invalid start_time or end_time format');
   }
 
   if (end.isBefore(start)) {
     throw new ConflictException('End time must be after start time');
   }
 
-  // Parse booking times if provided and valid, else fallback
+  // Use booking times if valid, else fallback to start/end
   let bookingStart = booking_start_time
-    ? dayjs(`${date} ${booking_start_time}`)
+    ? dayjs(`${date} ${booking_start_time}`, 'YYYY-MM-DD HH:mm')
     : start;
 
   if (!bookingStart.isValid()) bookingStart = start;
 
   let bookingEnd = booking_end_time
-    ? dayjs(`${date} ${booking_end_time}`)
+    ? dayjs(`${date} ${booking_end_time}`, 'YYYY-MM-DD HH:mm')
     : end;
 
   if (!bookingEnd.isValid()) bookingEnd = end;
@@ -67,7 +71,11 @@ async createManualSlot(doctorId: number, dto: CreateSlotDto, userId: number) {
 
   const slotDuration = end.diff(start, 'minute');
   if (slotDuration <= 0) {
-    throw new ConflictException('Invalid slot duration');
+    throw new ConflictException('Slot duration must be greater than zero');
+  }
+
+  if (patients_per_slot <= 0) {
+    throw new ConflictException('patients_per_slot must be greater than 0');
   }
 
   const reporting_gap = Math.floor(slotDuration / patients_per_slot);
@@ -86,6 +94,7 @@ async createManualSlot(doctorId: number, dto: CreateSlotDto, userId: number) {
 
   return await this.slotRepo.save(slot);
 }
+
 
   async canEditOrDeleteSlot(slotId: number): Promise<void> {
     const count = await this.appointmentRepo.count({
