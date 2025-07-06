@@ -27,7 +27,7 @@ private doctorRepo: Repository<Doctor>,
 
   ) {}
 
-  async createManualSlot(doctorId: number, dto: CreateSlotDto, userId: number) {
+async createManualSlot(doctorId: number, dto: CreateSlotDto, userId: number) {
   const {
     start_time,
     end_time,
@@ -42,6 +42,7 @@ private doctorRepo: Repository<Doctor>,
   const bookingStart = dayjs(`${date} ${booking_start_time}`);
   const bookingEnd = dayjs(`${date} ${booking_end_time}`);
 
+  // Check for invalid time/date formats
   if (!start.isValid() || !end.isValid() || !bookingStart.isValid() || !bookingEnd.isValid()) {
     throw new ConflictException('Invalid date or time format');
   }
@@ -56,17 +57,18 @@ private doctorRepo: Repository<Doctor>,
   const slot = this.slotRepo.create({
     doctor: { doctor_id: doctorId },
     slot_date: date,
-    slot_time: start_time,
-    end_time,
+    slot_time: start.format('HH:mm'),
+    end_time: end.format('HH:mm'),
     patients_per_slot,
-    booking_start_time,
-    booking_end_time,
+    booking_start_time: bookingStart.format('HH:mm'),  // ✅ Fix here
+    booking_end_time: bookingEnd.format('HH:mm'),      // ✅ Fix here
     slot_duration: slotDuration,
     reporting_gap,
   });
 
   return await this.slotRepo.save(slot);
 }
+
 
 
   async canEditOrDeleteSlot(slotId: number): Promise<void> {
