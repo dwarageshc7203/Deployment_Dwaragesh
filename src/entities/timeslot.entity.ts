@@ -11,6 +11,9 @@ import { Doctor } from './doctor.entity';
 import { DoctorAvailability } from './doctor_availablity.entity';
 import { Appointment } from './appointment.entity';
 
+// ✅ Move this OUTSIDE the class
+export type SessionType = 'morning' | 'evening';
+
 @Entity()
 export class Timeslot {
   @PrimaryGeneratedColumn()
@@ -45,21 +48,18 @@ export class Timeslot {
   patients_per_slot: number;
 
   @Column({ type: 'timestamp', nullable: true })
-booking_start_time: Date;
+  booking_start_time: Date;
 
-@Column({ type: 'timestamp', nullable: true })
-booking_end_time: Date;
-
-
+  @Column({ type: 'timestamp', nullable: true })
+  booking_end_time: Date;
 
   @Column({ type: 'int', nullable: true })
   slot_duration: number;
 
-  @Column({ type: 'int', nullable: true }) 
+  @Column({ type: 'int', nullable: true })
   reporting_gap: number;
 
-  @Column({ nullable: true, type: 'varchar' })
-session: 'morning' | 'evening';
-
-
+  // ✅ Fixed: Use the declared type correctly
+  @Column({ type: 'enum', enum: ['morning', 'evening'], nullable: true })
+  session: SessionType;
 }

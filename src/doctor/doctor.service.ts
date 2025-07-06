@@ -79,9 +79,21 @@ export class DoctorService {
     const today = dayjs().startOf('day');
     const requestedDate = dayjs(dto.date);
     if (requestedDate.isBefore(today)) {
-      throw new BadRequestException(
-        'Cannot create availability for a past date',
-      );
+      throw new BadRequestException('Cannot create availability for a past date');
+    }
+
+    const bookingStart = dto.booking_start_time
+      ? dayjs(`${dto.date}T${dto.booking_start_time}`)
+      : null;
+    const bookingEnd = dto.booking_end_time
+      ? dayjs(`${dto.date}T${dto.booking_end_time}`)
+      : null;
+
+    if (bookingStart && !bookingStart.isValid()) {
+      throw new BadRequestException('Invalid booking_start_time format');
+    }
+    if (bookingEnd && !bookingEnd.isValid()) {
+      throw new BadRequestException('Invalid booking_end_time format');
     }
 
     const availability = this.availabilityRepo.create({
@@ -91,20 +103,23 @@ export class DoctorService {
       end_time: dto.end_time,
       session: dto.session,
       weekday: dto.weekday,
-      booking_start_time: dto.booking_start_time,
-      booking_end_time: dto.booking_end_time,
+      booking_start_time: bookingStart?.toDate(),
+      booking_end_time: bookingEnd?.toDate(),
     });
 
     const savedAvailability = await this.availabilityRepo.save(availability);
 
+    const slotDuration = 30;
+    const patientsPerSlot = 3;
+    const reportingGap = Math.floor(slotDuration / patientsPerSlot);
+
     const start = dayjs(`${dto.date}T${dto.start_time}`);
     const end = dayjs(`${dto.date}T${dto.end_time}`);
-
     const slots: Timeslot[] = [];
-
     let current = start;
 
     while (current.isBefore(end)) {
+      const next = current.add(slotDuration, 'minute');
       const slotTime = current.format('HH:mm');
 
       const existing = await this.slotRepo
@@ -121,17 +136,24 @@ export class DoctorService {
           availability: savedAvailability,
           slot_date: current.format('YYYY-MM-DD'),
           slot_time: slotTime,
+          end_time: next.format('HH:mm:ss'),
           is_available: true,
-          session:
-            dto.session === 'morning' || dto.session === 'evening'
-              ? dto.session
-              : undefined,
+          session: dto.session as 'morning' | 'evening',
+          patients_per_slot: patientsPerSlot,
+          slot_duration: slotDuration,
+          reporting_gap: reportingGap,
+          ...(bookingStart && bookingEnd
+            ? {
+                booking_start_time: bookingStart.toDate(),
+                booking_end_time: bookingEnd.toDate(),
+              }
+            : {}),
         });
 
         slots.push(slot);
       }
 
-      current = current.add(30, 'minute');
+      current = next;
     }
 
     await this.slotRepo.save(slots);
@@ -151,17 +173,16 @@ export class DoctorService {
     const today = dayjs().startOf('day').toDate();
 
     const [slots, total] = await this.slotRepo
-  .createQueryBuilder('slot')
-  .leftJoinAndSelect('slot.availability', 'availability')
-  .where('slot.doctor = :doctorId', { doctorId })
-  .andWhere('slot.is_available = true')
-  .andWhere('slot.slot_date >= :today', { today })
-  .orderBy('slot.slot_date', 'ASC')
-  .addOrderBy('slot.slot_time', 'ASC')
-  .skip((page - 1) * limit)
-  .take(limit)
-  .getManyAndCount();
-
+      .createQueryBuilder('slot')
+      .leftJoinAndSelect('slot.availability', 'availability')
+      .where('slot.doctor = :doctorId', { doctorId })
+      .andWhere('slot.is_available = true')
+      .andWhere('slot.slot_date >= :today', { today })
+      .orderBy('slot.slot_date', 'ASC')
+      .addOrderBy('slot.slot_time', 'ASC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
 
     const grouped = slots.reduce((acc, slot) => {
       const date = new Date(slot.slot_date).toISOString().split('T')[0];
@@ -201,7 +222,11 @@ export class DoctorService {
     });
   }
 
-  async updateAvailability(doctorId: number, id: number, dto: UpdateAvailabilityDto) {
+  async updateAvailability(
+    doctorId: number,
+    id: number,
+    dto: UpdateAvailabilityDto,
+  ) {
     const availability = await this.availabilityRepo.findOne({
       where: { id },
       relations: ['slots', 'doctor'],
@@ -226,55 +251,4 @@ export class DoctorService {
     Object.assign(availability, dto);
     return this.availabilityRepo.save(availability);
   }
-
-  /*async createManualSlot(doctorId: number, dto: CreateManualSlotDto) {
-    const doctor = await this.doctorRepo.findOne({
-      where: { doctor_id: doctorId },
-    });
-
-    if (!doctor) {
-      throw new NotFoundException('Doctor not found');
-    }
-
-    const slotDurationInMinutes = dayjs(`${dto.date}T${dto.end_time}`).diff(
-      dayjs(`${dto.date}T${dto.start_time}`),
-      'minute',
-    );
-
-    if (slotDurationInMinutes <= 0 || dto.patients_per_slot <= 0) {
-      throw new BadRequestException('Invalid time range or patients_per_slot');
-    }
-
-    const slotInterval = Math.floor(
-      slotDurationInMinutes / dto.patients_per_slot,
-    );
-
-    const slots: Timeslot[] = [];
-    let current = dayjs(`${dto.date}T${dto.start_time}`);
-
-    for (let i = 0; i < dto.patients_per_slot; i++) {
-      const slotTime = current.format('HH:mm');
-
-      const slot = this.slotRepo.create({
-        doctor,
-        slot_date: current.format('YYYY-MM-DD'),
-        slot_time: slotTime,
-        is_available: true,
-        session:
-          dto.session === 'morning' || dto.session === 'evening'
-            ? dto.session
-            : undefined,
-      });
-
-      slots.push(slot);
-      current = current.add(slotInterval, 'minute');
-    }
-
-    await this.slotRepo.save(slots);
-
-    return {
-      message: 'Manual slots created',
-      total_slots: slots.length,
-    };
-  }*/
 }

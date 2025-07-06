@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
   UnauthorizedException,
-  ForbiddenException
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, Not } from 'typeorm';
@@ -37,32 +37,26 @@ export class AppointmentService {
     if (!doctor) throw new NotFoundException('Doctor not found');
 
     const slot = await this.timeslotRepo.findOne({
-  where: { slot_id: dto.slot_id },
-  relations: ['doctor'],
-});
-
-if (!slot || slot.doctor.doctor_id !== dto.doctor_id) {
-  throw new NotFoundException('Invalid slot for this doctor');
-}
-
-if (!slot.booking_start_time || !slot.booking_end_time) {
-  throw new ConflictException('Slot booking window not set');
-}
-
-
-const now = dayjs();
-const bookingStart = dayjs(`${slot.slot_date} ${slot.booking_start_time}`);
-const bookingEnd = dayjs(`${slot.slot_date} ${slot.booking_end_time}`);
-
-if (now.isBefore(bookingStart) || now.isAfter(bookingEnd)) {
-  throw new ForbiddenException(
-    'You can only book within the allowed booking window.',
-  );
-}
-
+      where: { slot_id: dto.slot_id },
+      relations: ['doctor', 'availability'],
+    });
 
     if (!slot || slot.doctor.doctor_id !== dto.doctor_id) {
       throw new NotFoundException('Invalid slot for this doctor');
+    }
+
+    if (!slot.availability?.booking_start_time || !slot.availability?.booking_end_time) {
+      throw new ConflictException('Slot booking window not set');
+    }
+
+    const now = dayjs();
+    const bookingStart = dayjs(slot.availability.booking_start_time);
+    const bookingEnd = dayjs(slot.availability.booking_end_time);
+
+    if (now.isBefore(bookingStart) || now.isAfter(bookingEnd)) {
+      throw new ForbiddenException(
+        'You can only book within the allowed booking window.',
+      );
     }
 
     const appointmentDate = dayjs(slot.slot_date);
@@ -109,7 +103,7 @@ if (now.isBefore(bookingStart) || now.isAfter(bookingEnd)) {
 
       const base = dayjs(`${slot.slot_date} ${slot.slot_time}`);
       const gap = Math.floor(slotDuration / patientsPerSlot);
-      reportingTime = base.add(gap * existing.length, 'minute').format('HH:mm:ss');
+      reportingTime = base.add(gap * existing.length, 'minute').format('HH:mm');
     }
 
     const patient = await this.patientRepo.findOne({
