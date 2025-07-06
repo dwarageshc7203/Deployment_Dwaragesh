@@ -42,4 +42,10 @@ export class CreateSlotDto {
     message: 'booking_end_time must be in HH:mm format',
   })
   booking_end_time?: string;
+
+  @IsOptional()
+  @Matches(/^(morning|evening)$/, {
+    message: 'session must be "morning" or "evening"',
+  })
+  session?: 'morning' | 'evening';
 }

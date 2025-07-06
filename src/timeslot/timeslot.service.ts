@@ -3,6 +3,7 @@ import {
   ConflictException,
   NotFoundException,
   UnauthorizedException,
+  BadRequestException
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Timeslot } from 'src/entities/timeslot.entity';
@@ -27,72 +28,48 @@ private doctorRepo: Repository<Doctor>,
 
   ) {}
 
-async createManualSlot(doctorId: number, dto: CreateSlotDto, userId: number) {
-  const {
-    start_time,
-    end_time,
-    date,
-    patients_per_slot,
-    booking_start_time,
-    booking_end_time,
-  } = dto;
-
-  const start = dayjs(`${date} ${start_time}`);
-  const end = dayjs(`${date} ${end_time}`);
-
-  if (!start.isValid() || !end.isValid()) {
-    throw new ConflictException('Invalid start_time or end_time');
-  }
-
-  if (end.isBefore(start)) {
-    throw new ConflictException('End time must be after start time');
-  }
-
-  // Handle booking window
-  let bookingStart = start;
-  if (booking_start_time) {
-    const parsedBookingStart = dayjs(`${date} ${booking_start_time}`);
-    if (parsedBookingStart.isValid()) {
-      bookingStart = parsedBookingStart;
-    } else {
-      throw new ConflictException('Invalid booking_start_time');
-    }
-  }
-
-  let bookingEnd = end;
-  if (booking_end_time) {
-    const parsedBookingEnd = dayjs(`${date} ${booking_end_time}`);
-    if (parsedBookingEnd.isValid()) {
-      bookingEnd = parsedBookingEnd;
-    } else {
-      throw new ConflictException('Invalid booking_end_time');
-    }
-  }
-
-  if (bookingEnd.isBefore(bookingStart)) {
-    throw new ConflictException('Booking end time must be after booking start time');
-  }
-
-  const slotDuration = end.diff(start, 'minute');
-  if (slotDuration <= 0) {
-    throw new ConflictException('Invalid slot duration');
-  }
-
-  const reporting_gap = Math.floor(slotDuration / patients_per_slot);
-
-  const slot = this.slotRepo.create({
-    doctor: { doctor_id: doctorId },
-    slot_date: start.toDate(),                      // DATE type
-    slot_time: start.format('HH:mm'),               // TIME type
-    end_time: end.format('HH:mm'),                  // TIME type
-    patients_per_slot,
-    booking_start_time: bookingStart.toDate(),      // TIMESTAMP type
-    booking_end_time: bookingEnd.toDate(),          // TIMESTAMP type
-    slot_duration: slotDuration,
-    reporting_gap,
+async createManualSlot(doctorId: number, dto: CreateSlotDto) {
+  const doctor = await this.doctorRepo.findOne({
+    where: { doctor_id: doctorId },
   });
 
-  return await this.slotRepo.save(slot);
+  if (!doctor) {
+    throw new NotFoundException('Doctor not found');
+  }
+
+  const start = dayjs(`${dto.date}T${dto.start_time}`);
+  const end = dayjs(`${dto.date}T${dto.end_time}`);
+
+  const slotDuration = end.diff(start, 'minute');
+
+  if (slotDuration <= 0 || dto.patients_per_slot <= 0) {
+    throw new BadRequestException('Invalid slot range or patients_per_slot');
+  }
+
+  const reporting_gap = Math.floor(slotDuration / dto.patients_per_slot);
+
+  const slot = this.slotRepo.create({
+    doctor,
+    slot_date: new Date(dto.date),
+    slot_time: dto.start_time, // Only time string (e.g., "11:00")
+    end_time: dto.end_time,     // Only time string (e.g., "13:00")
+    patients_per_slot: dto.patients_per_slot,
+    slot_duration: slotDuration,
+reporting_gap: reporting_gap,
+
+    is_available: true,
+    session: dto.session === 'morning' || dto.session === 'evening' ? dto.session : undefined,
+    booking_start_time: dayjs(`${dto.date}T${dto.booking_start_time}`).toDate(),
+    booking_end_time: dayjs(`${dto.date}T${dto.booking_end_time}`).toDate(),
+  });
+
+  await this.slotRepo.save(slot);
+
+  return {
+    message: 'Manual slot created successfully',
+    slotDuration,
+    reporting_gap,
+  };
 }
 
   async canEditOrDeleteSlot(slotId: number): Promise<void> {

@@ -35,9 +35,6 @@ export class Timeslot {
   @Column({ default: true })
   is_available: boolean;
 
-  @Column({ nullable: true, type: 'varchar' })
-  session: 'morning' | 'evening';
-
   @OneToMany(() => Appointment, (appointment) => appointment.time_slot)
   appointments: Appointment[];
 
@@ -58,4 +55,9 @@ export class Timeslot {
 
   @Column({ type: 'int', nullable: true })
   reporting_gap: number;
+
+  @Column({ nullable: true, type: 'varchar' })
+session: 'morning' | 'evening';
+
+
 }
