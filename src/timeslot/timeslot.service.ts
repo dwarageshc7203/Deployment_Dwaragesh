@@ -148,4 +148,29 @@ export class TimeslotService {
 
     return await this.slotRepo.save(slot);
   }
+
+  async getAllSlotsForDoctor(doctorId: number) {
+  const slots = await this.slotRepo.find({
+    where: { doctor: { doctor_id: doctorId } },
+    order: { slot_date: 'ASC', slot_time: 'ASC' },
+    relations: ['doctor'],
+  });
+
+  return {
+    doctor_id: doctorId,
+    total_slots: slots.length,
+    data: slots.map(slot => ({
+      slot_id: slot.slot_id,
+      date: slot.slot_date.toISOString().split('T')[0],
+      slot_time: slot.slot_time,
+      end_time: slot.end_time,
+      session: slot.session,
+      booking_start_time: slot.booking_start_time?.toISOString(),
+      booking_end_time: slot.booking_end_time?.toISOString(),
+      patients_per_slot: slot.patients_per_slot,
+      is_available: slot.is_available,
+    })),
+  };
+}
+
 }

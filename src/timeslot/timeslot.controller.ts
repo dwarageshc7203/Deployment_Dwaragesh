@@ -7,6 +7,7 @@ import {
   Delete,
   Patch,
   Req,
+  Get
 } from '@nestjs/common';
 import { TimeslotService } from './timeslot.service';
 import { JwtAuthGuard } from 'src/common/guards/jwt.guard';
@@ -49,5 +50,10 @@ createSlot(
     @Req() req,
   ) {
     return this.timeslotService.deleteSlot(slotId, req.user.sub);
+  }
+
+    @Get('doctors/:id/slots')
+  async getSlotsForDoctor(@Param('id') doctorId: number) {
+    return this.timeslotService.getAllSlotsForDoctor(+doctorId);
   }
 }
