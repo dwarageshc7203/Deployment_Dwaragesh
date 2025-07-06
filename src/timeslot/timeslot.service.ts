@@ -37,13 +37,8 @@ async createManualSlot(doctorId: number, dto: CreateSlotDto, userId: number) {
     booking_end_time,
   } = dto;
 
-  console.log('Received DTO:', dto);
-
   const start = dayjs(`${date} ${start_time}`);
   const end = dayjs(`${date} ${end_time}`);
-
-  console.log('Parsed start:', start.toISOString(), '| Valid:', start.isValid());
-  console.log('Parsed end:', end.toISOString(), '| Valid:', end.isValid());
 
   if (!start.isValid() || !end.isValid()) {
     throw new ConflictException('Invalid start_time or end_time');
@@ -67,9 +62,6 @@ async createManualSlot(doctorId: number, dto: CreateSlotDto, userId: number) {
     else throw new ConflictException('Invalid booking_end_time');
   }
 
-  console.log('Booking start:', bookingStart.toISOString(), '| Valid:', bookingStart.isValid());
-  console.log('Booking end:', bookingEnd.toISOString(), '| Valid:', bookingEnd.isValid());
-
   if (bookingEnd.isBefore(bookingStart)) {
     throw new ConflictException('Booking end time must be after booking start time');
   }
@@ -81,26 +73,20 @@ async createManualSlot(doctorId: number, dto: CreateSlotDto, userId: number) {
 
   const reporting_gap = Math.floor(slotDuration / patients_per_slot);
 
-  console.log('Slot duration (min):', slotDuration);
-  console.log('Reporting gap (min):', reporting_gap);
-
   const slot = this.slotRepo.create({
     doctor: { doctor_id: doctorId },
-    slot_date: start.toDate(), // or `dayjs(date).toDate()` if you only want the date portion
+    slot_date: start.toDate(),
     slot_time: start.format('HH:mm'),
     end_time: end.format('HH:mm'),
     patients_per_slot,
-    booking_start_time: bookingStart.toDate(), // ✅ Correct: Date object
-    booking_end_time: bookingEnd.toDate(),     // ✅ Correct: Date object
+    booking_start_time: bookingStart.format('HH:mm'), // ⬅️ Use this if column is `time`
+    booking_end_time: bookingEnd.format('HH:mm'),     // ⬅️ Use this if column is `time`
     slot_duration: slotDuration,
     reporting_gap,
   });
 
-  console.log('Final slot to save:', slot);
-
   return await this.slotRepo.save(slot);
 }
-
 
   async canEditOrDeleteSlot(slotId: number): Promise<void> {
     const count = await this.appointmentRepo.count({
