@@ -140,7 +140,7 @@ export class AppointmentService {
   reporting_time: reportingTime,
   doctor,
   patient,
-  time_slot: { slot_id: slot.slot_id } as Timeslot, // ✅ safe, minimal, explicit FK
+  time_slot: slot, // this ensures slot_id is set and relation is satisfied
 });
 
     await this.appointmentRepo.save(appointment);
