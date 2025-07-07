@@ -131,17 +131,17 @@ export class AppointmentService {
       );
     }
 
-    const appointment = this.appointmentRepo.create({
-      appointment_date: appointmentDate.toDate(),
-      session,
-      appointment_status: 'confirmed',
-      reason: dto.reason,
-      notes: dto.notes,
-      reporting_time: reportingTime,
-      doctor,
-      patient,
-      time_slot: slot, // relation
-    });
+  const appointment = this.appointmentRepo.create({
+  appointment_date: appointmentDate.toDate(),
+  session,
+  appointment_status: 'confirmed',
+  reason: dto.reason,
+  notes: dto.notes,
+  reporting_time: reportingTime,
+  doctor,
+  patient,
+  time_slot: slot,
+});
 
     await this.appointmentRepo.save(appointment);
   }
