@@ -131,7 +131,7 @@ export class AppointmentService {
       );
     }
 
-  const appointment = this.appointmentRepo.create({
+ const appointment = this.appointmentRepo.create({
   appointment_date: appointmentDate.toDate(),
   session,
   appointment_status: 'confirmed',
@@ -140,7 +140,7 @@ export class AppointmentService {
   reporting_time: reportingTime,
   doctor,
   patient,
-  time_slot: slot,
+  time_slot: { slot_id: slot.slot_id } as Timeslot, // ✅ safe, minimal, explicit FK
 });
 
     await this.appointmentRepo.save(appointment);
