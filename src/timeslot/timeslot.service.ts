@@ -43,6 +43,14 @@ export class TimeslotService {
     const start = dayjs(`${dto.date}T${dto.start_time}`);
     const end = dayjs(`${dto.date}T${dto.end_time}`);
     const slotDuration = end.diff(start, 'minute');
+    if (!dto.start_time || !dto.end_time) {
+  throw new BadRequestException('start_time and end_time are required');
+}
+
+if (!dayjs(dto.date, 'YYYY-MM-DD', true).isValid()) {
+  throw new BadRequestException('Invalid date format, expected YYYY-MM-DD');
+}
+
 
     if (slotDuration <= 0 || dto.patients_per_slot <= 0) {
       throw new BadRequestException('Invalid slot range or patients_per_slot');
