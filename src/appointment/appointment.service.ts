@@ -49,20 +49,13 @@ export class AppointmentService {
     }
 
     const bookingStart = slot.availability?.booking_start_time ?? slot.booking_start_time;
-const bookingEnd = slot.availability?.booking_end_time ?? slot.booking_end_time;
+    const bookingEnd = slot.availability?.booking_end_time ?? slot.booking_end_time;
 
-if (!bookingStart || !bookingEnd) {
-  throw new ConflictException('Slot booking window not set');
-}
-
+    if (!bookingStart || !bookingEnd) {
+      throw new ConflictException('Slot booking window not set');
+    }
 
     const now = dayjs().utc();
-
-    console.log('🕒 Current Time (UTC):', now.toISOString());
-    console.log('📆 Booking Window (UTC):', {
-      start: bookingStart.toISOString(),
-      end: bookingEnd.toISOString(),
-    });
 
     if (now.isBefore(bookingStart) || now.isAfter(bookingEnd)) {
       throw new ForbiddenException('You can only book within the allowed booking window.');
@@ -138,19 +131,19 @@ if (!bookingStart || !bookingEnd) {
       );
     }
 
-const appointment = this.appointmentRepo.create({
-  doctor,
-  patient,
-  appointment_date: slot.slot_date,
-  time_slot: slot, // ✅ Use the full Timeslot object you already fetched
-  session: session as 'morning' | 'evening',
-  appointment_status: 'confirmed',
-  reason: dto.reason || '',
-  notes: dto.notes || '',
-  reporting_time: reportingTime,
-});
+    const appointment = this.appointmentRepo.create({
+      appointment_date: appointmentDate.toDate(),
+      session,
+      appointment_status: 'confirmed',
+      reason: dto.reason,
+      notes: dto.notes,
+      reporting_time: reportingTime,
+      doctor,
+      patient,
+      time_slot: slot, // relation
+    });
 
-    return await this.appointmentRepo.save(appointment);
+    await this.appointmentRepo.save(appointment);
   }
 
   async getAppointmentsByDoctorAndDate(doctorId: number, date?: string) {
@@ -187,7 +180,7 @@ const appointment = this.appointmentRepo.create({
 
     if (date) {
       const start = new Date(date);
-      start.setHours(0, 0, 0, 0);
+      start.setHours(0, 0, 0,  0);
       const end = new Date(date);
       end.setHours(23, 59, 59, 999);
       whereClause.appointment_date = Between(start, end);
