@@ -48,13 +48,15 @@ export class AppointmentService {
       throw new NotFoundException('Invalid slot for this doctor');
     }
 
-    if (!slot.availability?.booking_start_time || !slot.availability?.booking_end_time) {
-      throw new ConflictException('Slot booking window not set');
-    }
+    const bookingStart = slot.availability?.booking_start_time ?? slot.booking_start_time;
+const bookingEnd = slot.availability?.booking_end_time ?? slot.booking_end_time;
+
+if (!bookingStart || !bookingEnd) {
+  throw new ConflictException('Slot booking window not set');
+}
+
 
     const now = dayjs().utc();
-    const bookingStart = dayjs(slot.availability.booking_start_time).utc();
-    const bookingEnd = dayjs(slot.availability.booking_end_time).utc();
 
     console.log('🕒 Current Time (UTC):', now.toISOString());
     console.log('📆 Booking Window (UTC):', {
