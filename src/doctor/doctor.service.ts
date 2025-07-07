@@ -4,6 +4,7 @@ import {
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
+import { In, Not } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { CreateAvailabilityDto } from 'src/dto/availablity.dto';
 import { Doctor } from 'src/entities/doctor.entity';
@@ -251,4 +252,33 @@ export class DoctorService {
     Object.assign(availability, dto);
     return this.availabilityRepo.save(availability);
   }
+
+  async deleteAvailability(doctorId: number, availabilityId: number) {
+  const availability = await this.availabilityRepo.findOne({
+    where: { id: availabilityId },
+    relations: ['doctor', 'slots'],
+  });
+
+  if (!availability) throw new NotFoundException('Availability not found');
+  if (availability.doctor.doctor_id !== doctorId) throw new ConflictException('Unauthorized');
+
+  const slotIds = availability.slots.map(s => s.slot_id);
+
+  const count = await this.appointmentRepo.count({
+    where: {
+      time_slot: { slot_id: In(slotIds) },
+      appointment_status: Not('cancelled'),
+    },
+  });
+
+  if (count > 0) {
+    throw new ConflictException('Cannot delete availability with booked appointments');
+  }
+
+  await this.slotRepo.delete({ availability: { id: availabilityId } });
+  await this.availabilityRepo.delete(availabilityId);
+
+  return { message: 'Availability and its slots deleted successfully' };
+}
+
 }

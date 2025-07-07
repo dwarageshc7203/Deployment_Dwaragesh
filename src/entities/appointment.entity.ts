@@ -26,9 +26,13 @@ export class Appointment {
   @Column({ type: 'date' })
   appointment_date: Date;
 
-  @ManyToOne(() => Timeslot, (slot) => slot.appointments, { eager: true })
-  @JoinColumn({ name: 'slot_id' })
-  time_slot: Timeslot;
+  @ManyToOne(() => Timeslot, (slot) => slot.appointments, {
+  eager: true,
+  onDelete: 'RESTRICT', // or leave it default
+})
+@JoinColumn({ name: 'slot_id' })
+time_slot: Timeslot;
+
 
   @Column({ type: 'enum', enum: ['morning', 'evening'], nullable: true })
   session: 'morning' | 'evening';

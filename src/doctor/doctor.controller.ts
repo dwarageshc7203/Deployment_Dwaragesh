@@ -12,6 +12,7 @@ import {
   Req,
   ForbiddenException,
   BadRequestException,
+  Delete
 } from '@nestjs/common';
 import { DoctorService } from './doctor.service';
 import { CreateAvailabilityDto } from 'src/dto/availablity.dto';
@@ -19,10 +20,14 @@ import { JwtAuthGuard } from 'src/common/guards/jwt.guard';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { UpdateSlotDto as UpdateAvailabilityDto } from 'src/dto/update-slot.dto';
+import { TimeslotService } from 'src/timeslot/timeslot.service';
 
 @Controller('api/v1/doctors')
 export class DoctorController {
-  constructor(private doctorService: DoctorService){}
+  constructor(private doctorService: DoctorService,
+      private timeslotService: TimeslotService // ✅ Inject here
+
+  ){}
 
   @UseGuards(JwtAuthGuard)
   @Get()
@@ -92,5 +97,29 @@ async updateAvailability(
 ) {
   return this.doctorService.updateAvailability(doctorId, id, dto);
 }
+
+@Get(':id/slots')
+  async getSlotsForDoctor(@Param('id') doctorId: number) {
+    return this.timeslotService.getAllSlotsForDoctor(+doctorId);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('doctor')
+@Delete(':doctorId/availability/:id')
+async deleteAvailability(
+  @Param('doctorId', ParseIntPipe) doctorId: number,
+  @Param('id', ParseIntPipe) availabilityId: number,
+  @Req() req: any
+) {
+  const userId = req.user.sub;
+  const doctor = await this.doctorService.findById(doctorId);
+
+  if (!doctor || doctor.user.user_id !== userId) {
+    throw new ForbiddenException('You can only delete your own availability');
+  }
+
+  return this.doctorService.deleteAvailability(doctorId, availabilityId);
+}
+
 
 }

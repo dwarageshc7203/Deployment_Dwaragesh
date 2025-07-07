@@ -8,6 +8,9 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, Not } from 'typeorm';
 import * as dayjs from 'dayjs';
+import * as utc from 'dayjs/plugin/utc';
+dayjs.extend(utc);
+
 import { Appointment } from 'src/entities/appointment.entity';
 import { Doctor } from 'src/entities/doctor.entity';
 import { Patient } from 'src/entities/patient.entity';
@@ -49,14 +52,18 @@ export class AppointmentService {
       throw new ConflictException('Slot booking window not set');
     }
 
-    const now = dayjs();
-    const bookingStart = dayjs(slot.availability.booking_start_time);
-    const bookingEnd = dayjs(slot.availability.booking_end_time);
+    const now = dayjs().utc();
+    const bookingStart = dayjs(slot.availability.booking_start_time).utc();
+    const bookingEnd = dayjs(slot.availability.booking_end_time).utc();
+
+    console.log('🕒 Current Time (UTC):', now.toISOString());
+    console.log('📆 Booking Window (UTC):', {
+      start: bookingStart.toISOString(),
+      end: bookingEnd.toISOString(),
+    });
 
     if (now.isBefore(bookingStart) || now.isAfter(bookingEnd)) {
-      throw new ForbiddenException(
-        'You can only book within the allowed booking window.',
-      );
+      throw new ForbiddenException('You can only book within the allowed booking window.');
     }
 
     const appointmentDate = dayjs(slot.slot_date);

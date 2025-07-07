@@ -52,8 +52,8 @@ createSlot(
     return this.timeslotService.deleteSlot(slotId, req.user.sub);
   }
 
-    @Get('doctors/:id/slots')
+    /*@Get('doctors/:id/slots')
   async getSlotsForDoctor(@Param('id') doctorId: number) {
     return this.timeslotService.getAllSlotsForDoctor(+doctorId);
-  }
+  }*/
 }

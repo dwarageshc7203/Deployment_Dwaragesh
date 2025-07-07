@@ -3,7 +3,8 @@ import {
   ConflictException,
   NotFoundException,
   UnauthorizedException,
-  BadRequestException
+  BadRequestException,
+  InternalServerErrorException
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not } from 'typeorm';
@@ -35,8 +36,9 @@ export class TimeslotService {
 
     if (!doctor) throw new NotFoundException('Doctor not found');
 
-    if (doctor.user.user_id !== userId)
+    if (doctor.user.user_id !== userId) {
       throw new UnauthorizedException('You are not allowed to create slot for this doctor');
+    }
 
     const start = dayjs(`${dto.date}T${dto.start_time}`);
     const end = dayjs(`${dto.date}T${dto.end_time}`);
@@ -58,8 +60,12 @@ export class TimeslotService {
       reporting_gap,
       is_available: true,
       session: dto.session === 'morning' || dto.session === 'evening' ? dto.session : undefined,
-      booking_start_time: dto.booking_start_time ? new Date(`${dto.date}T${dto.booking_start_time}`) : undefined,
-      booking_end_time: dto.booking_end_time ? new Date(`${dto.date}T${dto.booking_end_time}`) : undefined,
+      booking_start_time: dto.booking_start_time
+        ? new Date(`${dto.date}T${dto.booking_start_time}`)
+        : undefined,
+      booking_end_time: dto.booking_end_time
+        ? new Date(`${dto.date}T${dto.booking_end_time}`)
+        : undefined,
     });
 
     await this.slotRepo.save(slot);
@@ -72,33 +78,65 @@ export class TimeslotService {
   }
 
   async canEditOrDeleteSlot(slotId: number): Promise<void> {
+    const slot = await this.slotRepo.findOne({ where: { slot_id: slotId } });
+    if (!slot) throw new NotFoundException('Slot not found');
+
     const count = await this.appointmentRepo.count({
       where: {
-        time_slot: { slot_id: slotId },
+        time_slot: slot,
         appointment_status: Not('cancelled'),
       },
     });
 
     if (count > 0) {
       throw new ConflictException(
-        'You cannot modify this slot because an appointment is already booked in this session.'
+        'You cannot modify this slot because an appointment is already booked in this session.',
       );
     }
   }
 
-  async deleteSlot(slotId: number, userId: number) {
-    const slot = await this.slotRepo.findOne({
-      where: { slot_id: slotId },
-      relations: ['doctor', 'doctor.user'],
-    });
+  async deleteSlot(doctorId: number, slotId: number) {
+  // 1. Ensure the slot exists and belongs to the doctor
+  const slot = await this.slotRepo.findOne({
+    where: { slot_id: slotId, doctor: { doctor_id: doctorId } },
+    relations: ['doctor'], // if needed
+  });
 
-    if (!slot) throw new NotFoundException('Slot not found');
-    if (slot.doctor.user.user_id !== userId)
-      throw new UnauthorizedException();
-
-    await this.canEditOrDeleteSlot(slotId);
-    return await this.slotRepo.delete(slotId);
+  if (!slot) {
+    throw new NotFoundException('Slot not found for this doctor.');
   }
+
+  // 2. Check if any appointment is linked to this slot
+  const hasAppointments = await this.appointmentRepo.exist({
+    where: {
+      time_slot: { slot_id: slotId },
+      // Optional: Only check non-cancelled appointments
+      appointment_status: Not('cancelled'),
+    },
+  });
+
+  if (hasAppointments) {
+    throw new BadRequestException(
+      'Cannot delete slot: Appointments exist for this timeslot.',
+    );
+  }
+
+  // 3. Safe to delete
+try {
+  await this.slotRepo.remove(slot);
+} catch (error) {
+  if (error.code === '23503') {
+    throw new BadRequestException(
+      'Slot cannot be deleted because appointments still reference it.',
+    );
+  }
+  throw new InternalServerErrorException('Something went wrong.');
+}
+  return { message: 'Timeslot deleted successfully.' };
+}
+
+
+
 
   async updateSlot(slotId: number, dto: Partial<CreateSlotDto>, userId: number) {
     const slot = await this.slotRepo.findOne({
@@ -107,12 +145,13 @@ export class TimeslotService {
     });
 
     if (!slot) throw new NotFoundException('Slot not found');
-    if (slot.doctor.user.user_id !== userId)
+    if (slot.doctor.user.user_id !== userId) {
       throw new UnauthorizedException();
+    }
 
     await this.canEditOrDeleteSlot(slotId);
 
-    const dateStr = slot.slot_date.toISOString().split('T')[0];
+const dateStr = dayjs(slot.slot_date).format('YYYY-MM-DD');
     const start = dayjs(`${dateStr}T${dto.start_time ?? slot.slot_time}`);
     const end = dayjs(`${dateStr}T${dto.end_time ?? slot.end_time}`);
 
@@ -150,27 +189,26 @@ export class TimeslotService {
   }
 
   async getAllSlotsForDoctor(doctorId: number) {
-  const slots = await this.slotRepo.find({
-    where: { doctor: { doctor_id: doctorId } },
-    order: { slot_date: 'ASC', slot_time: 'ASC' },
-    relations: ['doctor'],
-  });
+    const slots = await this.slotRepo.find({
+      where: { doctor: { doctor_id: doctorId } },
+      order: { slot_date: 'ASC', slot_time: 'ASC' },
+      relations: ['doctor'],
+    });
 
-  return {
-    doctor_id: doctorId,
-    total_slots: slots.length,
-    data: slots.map(slot => ({
-      slot_id: slot.slot_id,
-      date: slot.slot_date.toISOString().split('T')[0],
-      slot_time: slot.slot_time,
-      end_time: slot.end_time,
-      session: slot.session,
-      booking_start_time: slot.booking_start_time?.toISOString(),
-      booking_end_time: slot.booking_end_time?.toISOString(),
-      patients_per_slot: slot.patients_per_slot,
-      is_available: slot.is_available,
-    })),
-  };
-}
-
+    return {
+      doctor_id: doctorId,
+      total_slots: slots.length,
+      data: slots.map((slot) => ({
+        slot_id: slot.slot_id,
+        date: slot.slot_date.toISOString().split('T')[0],
+        slot_time: slot.slot_time,
+        end_time: slot.end_time,
+        session: slot.session,
+        booking_start_time: slot.booking_start_time?.toISOString(),
+        booking_end_time: slot.booking_end_time?.toISOString(),
+        patients_per_slot: slot.patients_per_slot,
+        is_available: slot.is_available,
+      })),
+    };
+  }
 }
