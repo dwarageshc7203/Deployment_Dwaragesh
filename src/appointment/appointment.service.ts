@@ -142,13 +142,14 @@ const appointment = this.appointmentRepo.create({
   doctor,
   patient,
   appointment_date: slot.slot_date,
-  time_slot: { slot_id: slot.slot_id } as Timeslot,  // <- THIS LINE IS KEY
+  time_slot: slot, // ✅ Use the actual Timeslot entity here
   session: session as 'morning' | 'evening',
   appointment_status: 'confirmed',
   reason: dto.reason || '',
   notes: dto.notes || '',
   reporting_time: reportingTime,
 });
+
 
     return await this.appointmentRepo.save(appointment);
   }
