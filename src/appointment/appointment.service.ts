@@ -139,16 +139,17 @@ if (!bookingStart || !bookingEnd) {
     }
 
     const appointment = this.appointmentRepo.create({
-      doctor,
-      patient,
-      appointment_date: slot.slot_date,
-      time_slot: slot,
-      session: session as 'morning' | 'evening',
-      appointment_status: 'confirmed',
-      reason: dto.reason || '',
-      notes: dto.notes || '',
-      reporting_time: reportingTime,
-    });
+  doctor,
+  patient,
+  appointment_date: slot.slot_date,
+  time_slot: { slot_id: slot.slot_id } as Timeslot, // ✅ key fix
+  session: session as 'morning' | 'evening',
+  appointment_status: 'confirmed',
+  reason: dto.reason || '',
+  notes: dto.notes || '',
+  reporting_time: reportingTime,
+});
+
 
     return await this.appointmentRepo.save(appointment);
   }
