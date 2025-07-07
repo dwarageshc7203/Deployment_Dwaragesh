@@ -61,11 +61,12 @@ export class TimeslotService {
       is_available: true,
       session: dto.session === 'morning' || dto.session === 'evening' ? dto.session : undefined,
       booking_start_time: dto.booking_start_time
-        ? new Date(`${dto.date}T${dto.booking_start_time}`)
-        : undefined,
-      booking_end_time: dto.booking_end_time
-        ? new Date(`${dto.date}T${dto.booking_end_time}`)
-        : undefined,
+  ? new Date(dto.booking_start_time)
+  : undefined,
+booking_end_time: dto.booking_end_time
+  ? new Date(dto.booking_end_time)
+  : undefined,
+
     });
 
     await this.slotRepo.save(slot);
