@@ -81,7 +81,7 @@ export class AppointmentService {
 
     const existing = await this.appointmentRepo
       .createQueryBuilder('appointment')
-      .leftJoin('appointment.time_slot', 'slot')
+      .leftJoin('appointment.time_slot', 'slot') // time_slot is the relationship name
       .where('slot.slot_id = :slotId', { slotId: slot.slot_id })
       .andWhere('appointment.appointment_status != :status', { status: 'cancelled' })
       .orderBy('appointment.created_at', 'ASC')
@@ -116,7 +116,7 @@ export class AppointmentService {
     const existingSessionBooking = await this.appointmentRepo
       .createQueryBuilder('appointment')
       .leftJoin('appointment.patient', 'patient')
-      .leftJoin('appointment.time_slot', 'slot')
+      .leftJoin('appointment.time_slot', 'slot') // time_slot is the relationship name
       .leftJoin('slot.doctor', 'doctor')
       .where('patient.patient_id = :patientId', { patientId: patient.patient_id })
       .andWhere('doctor.doctor_id = :doctorId', { doctorId: dto.doctor_id })
@@ -131,6 +131,7 @@ export class AppointmentService {
       );
     }
 
+    // FIXED: Create appointment with proper field mapping
     const appointment = this.appointmentRepo.create({
       appointment_date: appointmentDate.toDate(),
       session,
@@ -138,9 +139,9 @@ export class AppointmentService {
       reason: dto.reason,
       notes: dto.notes,
       reporting_time: reportingTime,
+      time_slot: slot, // time_slot is a relationship to Timeslot entity
       doctor,
       patient,
-      time_slot: slot,
     });
 
     await this.appointmentRepo.save(appointment);
@@ -162,7 +163,7 @@ export class AppointmentService {
 
     return this.appointmentRepo.find({
       where: whereClause,
-      relations: ['doctor', 'patient', 'time_slot'],
+      relations: ['doctor', 'patient', 'time_slot'], // time_slot is the relationship name
       order: { appointment_date: 'ASC' },
     });
   }
@@ -188,7 +189,7 @@ export class AppointmentService {
 
     return this.appointmentRepo.find({
       where: whereClause,
-      relations: ['doctor', 'patient', 'time_slot'],
+      relations: ['doctor', 'patient', 'time_slot'], // time_slot is the relationship name
       order: { appointment_date: 'ASC' },
     });
   }
