@@ -49,7 +49,7 @@ createSlot(
     @Param('slotId') slotId: number,
     @Req() req,
   ) {
-    return this.timeslotService.deleteSlot(slotId, req.user.sub);
+    return this.timeslotService.deleteSlot(req.user.sub, slotId);
   }
 
     /*@Get('doctors/:id/slots')

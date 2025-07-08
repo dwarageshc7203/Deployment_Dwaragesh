@@ -4,7 +4,7 @@ import {
   NotFoundException,
   UnauthorizedException,
   BadRequestException,
-  InternalServerErrorException
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not } from 'typeorm';
@@ -29,55 +29,94 @@ export class TimeslotService {
   ) {}
 
   async createManualSlot(doctorId: number, dto: CreateSlotDto, userId: number) {
+    console.log('Creating manual slot with DTO:', dto);
+
     const doctor = await this.doctorRepo.findOne({
       where: { doctor_id: doctorId },
       relations: ['user'],
     });
 
     if (!doctor) throw new NotFoundException('Doctor not found');
-
     if (doctor.user.user_id !== userId) {
       throw new UnauthorizedException('You are not allowed to create slot for this doctor');
     }
 
+    if (!dto.start_time || !dto.end_time) {
+      throw new BadRequestException('start_time and end_time are required');
+    }
+
+    if (!dayjs(dto.date, 'YYYY-MM-DD', true).isValid()) {
+      throw new BadRequestException('Invalid date format, expected YYYY-MM-DD');
+    }
+
     const start = dayjs(`${dto.date}T${dto.start_time}`);
     const end = dayjs(`${dto.date}T${dto.end_time}`);
+    if (!start.isValid() || !end.isValid() || end.isBefore(start)) {
+      throw new BadRequestException('Invalid start or end time');
+    }
+
+    if (start.isBefore(dayjs().startOf('day'))) {
+      throw new BadRequestException('Cannot create slots for past dates');
+    }
+
     const slotDuration = end.diff(start, 'minute');
-    if (!dto.start_time || !dto.end_time) {
-  throw new BadRequestException('start_time and end_time are required');
-}
-
-if (!dayjs(dto.date, 'YYYY-MM-DD', true).isValid()) {
-  throw new BadRequestException('Invalid date format, expected YYYY-MM-DD');
-}
-
-
     if (slotDuration <= 0 || dto.patients_per_slot <= 0) {
       throw new BadRequestException('Invalid slot range or patients_per_slot');
     }
 
+    const existingSlot = await this.slotRepo.findOne({
+      where: {
+        doctor: { doctor_id: doctorId },
+        slot_date: start.toDate(),
+        slot_time: dto.start_time,
+      },
+    });
+    if (existingSlot) {
+      throw new ConflictException('A slot at this time already exists for this doctor');
+    }
+
     const reporting_gap = Math.floor(slotDuration / dto.patients_per_slot);
+
+    let bookingStart: Date | undefined;
+    let bookingEnd: Date | undefined;
+
+    if (dto.booking_start_time) {
+      const parsed = dayjs(`${dto.date}T${dto.booking_start_time}`);
+      if (!parsed.isValid()) {
+        throw new BadRequestException('Invalid booking_start_time format');
+      }
+      bookingStart = parsed.toDate();
+    }
+
+    if (dto.booking_end_time) {
+      const parsed = dayjs(`${dto.date}T${dto.booking_end_time}`);
+      if (!parsed.isValid()) {
+        throw new BadRequestException('Invalid booking_end_time format');
+      }
+      bookingEnd = parsed.toDate();
+    }
+
+    if (bookingStart && bookingEnd && dayjs(bookingEnd).isBefore(bookingStart)) {
+      throw new BadRequestException('booking_end_time must be after booking_start_time');
+    }
 
     const slot = this.slotRepo.create({
       doctor,
-      slot_date: dayjs(dto.date, 'YYYY-MM-DD').toDate(),
+      slot_date: start.toDate(),
       slot_time: dto.start_time,
       end_time: dto.end_time,
       patients_per_slot: dto.patients_per_slot,
       slot_duration: slotDuration,
       reporting_gap,
       is_available: true,
-      session: dto.session === 'morning' || dto.session === 'evening' ? dto.session : undefined,
-      booking_start_time: dto.booking_start_time
-  ? new Date(dto.booking_start_time)
-  : undefined,
-booking_end_time: dto.booking_end_time
-  ? new Date(dto.booking_end_time)
-  : undefined,
-
+      session: dto.session,
+      booking_start_time: bookingStart,
+      booking_end_time: bookingEnd,
     });
 
     await this.slotRepo.save(slot);
+
+    console.log('Manual slot created successfully:', slot);
 
     return {
       message: 'Manual slot created successfully',
@@ -104,47 +143,64 @@ booking_end_time: dto.booking_end_time
     }
   }
 
-  async deleteSlot(doctorId: number, slotId: number) {
-  // 1. Ensure the slot exists and belongs to the doctor
+async deleteSlot(doctorId: number, slotId: number) {
   const slot = await this.slotRepo.findOne({
     where: { slot_id: slotId, doctor: { doctor_id: doctorId } },
-    relations: ['doctor'], // if needed
+    relations: ['doctor', 'availability'],
   });
 
   if (!slot) {
     throw new NotFoundException('Slot not found for this doctor.');
   }
 
-  // 2. Check if any appointment is linked to this slot
-  const hasAppointments = await this.appointmentRepo.exist({
-    where: {
-      time_slot: { slot_id: slotId },
-      // Optional: Only check non-cancelled appointments
-      appointment_status: Not('cancelled'),
-    },
-  });
+  // If this slot is linked to an availability (i.e. a session window)
+  const availability = slot.availability;
 
-  if (hasAppointments) {
-    throw new BadRequestException(
-      'Cannot delete slot: Appointments exist for this timeslot.',
-    );
+  if (availability) {
+    const hasAppointmentsInSession = await this.appointmentRepo
+      .createQueryBuilder('appointment')
+      .leftJoin('appointment.time_slot', 'slot')
+      .leftJoin('slot.availability', 'availability')
+      .where('availability.id = :id', { id: availability.id })
+      .andWhere('appointment.appointment_status != :status', { status: 'cancelled' })
+      .getCount();
+
+    if (hasAppointmentsInSession > 0) {
+      throw new BadRequestException(
+        'Cannot delete slot: Appointments exist in the consulting session.',
+      );
+    }
+  } else {
+    // Manual slot (no availability group)
+    const hasAppointments = await this.appointmentRepo.exist({
+      where: {
+        time_slot: { slot_id: slotId },
+        appointment_status: Not('cancelled'),
+      },
+    });
+
+    if (hasAppointments) {
+      throw new BadRequestException(
+        'Cannot delete slot: Appointments exist for this timeslot.',
+      );
+    }
   }
 
-  // 3. Safe to delete
-try {
-  await this.slotRepo.remove(slot);
-} catch (error) {
-  if (error.code === '23503') {
-    throw new BadRequestException(
-      'Slot cannot be deleted because appointments still reference it.',
-    );
+  try {
+    await this.slotRepo.remove(slot);
+  } catch (error) {
+    if (error.code === '23503') {
+      throw new BadRequestException(
+        'Slot cannot be deleted because appointments still reference it.',
+      );
+    }
+    console.error('Error deleting slot:', error);
+    throw new InternalServerErrorException('Something went wrong.');
   }
-  throw new InternalServerErrorException('Something went wrong.');
-}
+
+  console.log(`Slot ${slotId} deleted successfully for doctor ${doctorId}`);
   return { message: 'Timeslot deleted successfully.' };
 }
-
-
 
 
   async updateSlot(slotId: number, dto: Partial<CreateSlotDto>, userId: number) {
@@ -160,7 +216,7 @@ try {
 
     await this.canEditOrDeleteSlot(slotId);
 
-const dateStr = dayjs(slot.slot_date).format('YYYY-MM-DD');
+    const dateStr = dayjs(slot.slot_date).format('YYYY-MM-DD');
     const start = dayjs(`${dateStr}T${dto.start_time ?? slot.slot_time}`);
     const end = dayjs(`${dateStr}T${dto.end_time ?? slot.end_time}`);
 
@@ -194,7 +250,10 @@ const dateStr = dayjs(slot.slot_date).format('YYYY-MM-DD');
       slot.booking_end_time = parsedEnd.toDate();
     }
 
-    return await this.slotRepo.save(slot);
+    const updated = await this.slotRepo.save(slot);
+    console.log('Slot updated:', updated);
+
+    return updated;
   }
 
   async getAllSlotsForDoctor(doctorId: number) {
