@@ -151,7 +151,7 @@ const appointment = this.appointmentRepo.create({
   reason: dto.reason,
   notes: dto.notes,
   reporting_time: reportingTime,
-  time_slot: slot, // ✅ Correct assignment to relation
+  time_slot: slot.slot_time, // ✅ Correct assignment to relation
   doctor,
   patient,
 });
