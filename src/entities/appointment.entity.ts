@@ -26,14 +26,13 @@ export class Appointment {
   @Column({ type: 'date' })
   appointment_date: Date;
 
-@ManyToOne(() => Timeslot, (slot) => slot.appointments, {
-  eager: true,
-  nullable: false,
-  onDelete: 'RESTRICT',
-})
-@JoinColumn({ name: 'slot_id' })
-time_slot: Timeslot;
-
+  @ManyToOne(() => Timeslot, (slot) => slot.appointments, {
+    eager: true,
+    nullable: false,
+    onDelete: 'RESTRICT',
+  })
+  @JoinColumn({ name: 'slot_id' })
+  time_slot: Timeslot;
 
   @Column({ type: 'enum', enum: ['morning', 'evening'], nullable: true })
   session: 'morning' | 'evening';
@@ -41,8 +40,8 @@ time_slot: Timeslot;
   @Column({ type: 'varchar', length: 20 })
   appointment_status: string;
 
-@Column({ type: 'varchar', length: 255 })  // adjust as needed
-reason: string;
+  @Column({ type: 'varchar', length: 255 })
+  reason: string;
 
   @Column('text')
   notes: string;
