@@ -26,8 +26,8 @@ export class AppointmentController {
     console.log('🆔 Patient user_id from JWT:', req.user.sub);
     return this.appointmentService.bookAppointment(dto, req.user.sub); // use sub as userId
   }
-
-  @Get('/doctor')
+  
+  @Get('/doctor/by-date')
   @Roles('doctor')
   getAppointmentsByDoctorAndDate(
     @Query('doctor_id') doctorId: number,
@@ -47,4 +47,23 @@ export class AppointmentController {
   cancelAppointment(@Param('id') id: number, @Req() req) {
     return this.appointmentService.cancelAppointment(+id, req.user.sub, req.user.role);
   }
+
+  @Get('/patient')
+@Roles('patient')
+getPatientAppointments(
+  @Req() req,
+  @Query('type') type: 'upcoming' | 'past' | 'cancelled',
+) {
+  return this.appointmentService.getPatientAppointments(req.user.sub, type);
+}
+
+@Get('/doctor')
+@Roles('doctor')
+getDoctorAppointments(
+  @Req() req,
+  @Query('type') type: 'upcoming' | 'past' | 'cancelled',
+) {
+  return this.appointmentService.getDoctorAppointments(req.user.sub, type);
+}
+
 }
