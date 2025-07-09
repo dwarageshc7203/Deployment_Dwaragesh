@@ -235,13 +235,14 @@ export class DoctorService {
 
     if (!availability) throw new NotFoundException('Availability not found');
 
-    const count = await this.appointmentRepo
-      .createQueryBuilder('a')
-      .leftJoin('a.time_slot', 'slot')
-      .leftJoin('slot.availability', 'avail')
-      .where('a.doctor = :doctorId', { doctorId })
-      .andWhere('a.appointment_status != :status', { status: 'cancelled' })
-      .getCount();
+    const slotTimes = availability.slots.map(s => s.slot_time);
+
+    const count = await this.appointmentRepo.count({
+      where: {
+        time_slot: In(slotTimes),
+        appointment_status: Not('cancelled'),
+      },
+    });
 
     if (count > 0) {
       throw new ConflictException(
@@ -254,31 +255,30 @@ export class DoctorService {
   }
 
   async deleteAvailability(doctorId: number, availabilityId: number) {
-  const availability = await this.availabilityRepo.findOne({
-    where: { id: availabilityId },
-    relations: ['doctor', 'slots'],
-  });
+    const availability = await this.availabilityRepo.findOne({
+      where: { id: availabilityId },
+      relations: ['doctor', 'slots'],
+    });
 
-  if (!availability) throw new NotFoundException('Availability not found');
-  if (availability.doctor.doctor_id !== doctorId) throw new ConflictException('Unauthorized');
+    if (!availability) throw new NotFoundException('Availability not found');
+    if (availability.doctor.doctor_id !== doctorId) throw new ConflictException('Unauthorized');
 
-  const slotIds = availability.slots.map(s => s.slot_id);
+    const slotTimes = availability.slots.map(slot => slot.slot_time);
 
-  const count = await this.appointmentRepo.count({
-    where: {
-      time_slot: { slot_id: In(slotIds) },
-      appointment_status: Not('cancelled'),
-    },
-  });
+    const count = await this.appointmentRepo.count({
+      where: {
+        time_slot: In(slotTimes),
+        appointment_status: Not('cancelled'),
+      },
+    });
 
-  if (count > 0) {
-    throw new ConflictException('Cannot delete availability with booked appointments');
+    if (count > 0) {
+      throw new ConflictException('Cannot delete availability with booked appointments');
+    }
+
+    await this.slotRepo.delete({ availability: { id: availabilityId } });
+    await this.availabilityRepo.delete(availabilityId);
+
+    return { message: 'Availability and its slots deleted successfully' };
   }
-
-  await this.slotRepo.delete({ availability: { id: availabilityId } });
-  await this.availabilityRepo.delete(availabilityId);
-
-  return { message: 'Availability and its slots deleted successfully' };
-}
-
 }

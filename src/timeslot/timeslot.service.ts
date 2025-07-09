@@ -7,7 +7,7 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not } from 'typeorm';
+import { Repository, In, Not } from 'typeorm';
 import * as dayjs from 'dayjs';
 
 import { Timeslot } from 'src/entities/timeslot.entity';
@@ -29,8 +29,6 @@ export class TimeslotService {
   ) {}
 
   async createManualSlot(doctorId: number, dto: CreateSlotDto, userId: number) {
-    console.log('Creating manual slot with DTO:', dto);
-
     const doctor = await this.doctorRepo.findOne({
       where: { doctor_id: doctorId },
       relations: ['user'],
@@ -116,8 +114,6 @@ export class TimeslotService {
 
     await this.slotRepo.save(slot);
 
-    console.log('Manual slot created successfully:', slot);
-
     return {
       message: 'Manual slot created successfully',
       slotDuration,
@@ -131,8 +127,8 @@ export class TimeslotService {
 
     const count = await this.appointmentRepo.count({
       where: {
-        time_slot: slot,
-        appointment_status: Not('cancelled'),
+        time_slot: slot.slot_time,
+        appointment_status: In(['confirmed']),
       },
     });
 
@@ -143,65 +139,59 @@ export class TimeslotService {
     }
   }
 
-async deleteSlot(doctorId: number, slotId: number) {
-  const slot = await this.slotRepo.findOne({
-    where: { slot_id: slotId, doctor: { doctor_id: doctorId } },
-    relations: ['doctor', 'availability'],
-  });
-
-  if (!slot) {
-    throw new NotFoundException('Slot not found for this doctor.');
-  }
-
-  // If this slot is linked to an availability (i.e. a session window)
-  const availability = slot.availability;
-
-  if (availability) {
-    const hasAppointmentsInSession = await this.appointmentRepo
-      .createQueryBuilder('appointment')
-      .leftJoin('appointment.time_slot', 'slot')
-      .leftJoin('slot.availability', 'availability')
-      .where('availability.id = :id', { id: availability.id })
-      .andWhere('appointment.appointment_status != :status', { status: 'cancelled' })
-      .getCount();
-
-    if (hasAppointmentsInSession > 0) {
-      throw new BadRequestException(
-        'Cannot delete slot: Appointments exist in the consulting session.',
-      );
-    }
-  } else {
-    // Manual slot (no availability group)
-    const hasAppointments = await this.appointmentRepo.exist({
-      where: {
-        time_slot: { slot_id: slotId },
-        appointment_status: Not('cancelled'),
-      },
+  async deleteSlot(doctorId: number, slotId: number) {
+    const slot = await this.slotRepo.findOne({
+      where: { slot_id: slotId, doctor: { doctor_id: doctorId } },
+      relations: ['doctor', 'availability'],
     });
 
-    if (hasAppointments) {
-      throw new BadRequestException(
-        'Cannot delete slot: Appointments exist for this timeslot.',
-      );
+    if (!slot) {
+      throw new NotFoundException('Slot not found for this doctor.');
     }
-  }
 
-  try {
-    await this.slotRepo.remove(slot);
-  } catch (error) {
-    if (error.code === '23503') {
-      throw new BadRequestException(
-        'Slot cannot be deleted because appointments still reference it.',
-      );
+    if (slot.availability) {
+      const hasAppointmentsInSession = await this.appointmentRepo
+        .createQueryBuilder('appointment')
+        .leftJoin('appointment.time_slot', 'slot')
+        .leftJoin('slot.availability', 'availability')
+        .where('availability.id = :id', { id: slot.availability.id })
+        .andWhere('appointment.appointment_status != :status', { status: 'cancelled' })
+        .getCount();
+
+      if (hasAppointmentsInSession > 0) {
+        throw new BadRequestException(
+          'Cannot delete slot: Appointments exist in the consulting session.',
+        );
+      }
+    } else {
+      const count = await this.appointmentRepo.count({
+        where: {
+          time_slot: slot.slot_time,
+          appointment_status: Not('cancelled'),
+        },
+      });
+
+      if (count > 0) {
+        throw new BadRequestException(
+          'Cannot delete slot: Appointments exist for this timeslot.',
+        );
+      }
     }
-    console.error('Error deleting slot:', error);
-    throw new InternalServerErrorException('Something went wrong.');
+
+    try {
+      await this.slotRepo.remove(slot);
+    } catch (error) {
+      if (error.code === '23503') {
+        throw new BadRequestException(
+          'Slot cannot be deleted because appointments still reference it.',
+        );
+      }
+      console.error('Error deleting slot:', error);
+      throw new InternalServerErrorException('Something went wrong.');
+    }
+
+    return { message: 'Timeslot deleted successfully.' };
   }
-
-  console.log(`Slot ${slotId} deleted successfully for doctor ${doctorId}`);
-  return { message: 'Timeslot deleted successfully.' };
-}
-
 
   async updateSlot(slotId: number, dto: Partial<CreateSlotDto>, userId: number) {
     const slot = await this.slotRepo.findOne({
@@ -251,8 +241,6 @@ async deleteSlot(doctorId: number, slotId: number) {
     }
 
     const updated = await this.slotRepo.save(slot);
-    console.log('Slot updated:', updated);
-
     return updated;
   }
 
