@@ -82,7 +82,7 @@ export class AppointmentService {
 
     const existing = await this.appointmentRepo
       .createQueryBuilder('appointment')
-      .leftJoin('appointment.time_slot', 'slot') // time_slot is the relationship name
+      .leftJoin('appointment.time_slot_id', 'slot') // ✅ if time_slot_id is still a relation
       .where('slot.slot_id = :slotId', { slotId: slot.slot_id })
       .andWhere('appointment.appointment_status != :status', { status: 'cancelled' })
       .orderBy('appointment.created_at', 'ASC')
