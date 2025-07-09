@@ -10,8 +10,17 @@ export class FixTimeSlotColumn1752052581195 implements MigrationInterface {
     // Step 2: Rename column from slot_id → time_slot_id
     await queryRunner.query(`ALTER TABLE "appointment" RENAME COLUMN "slot_id" TO "time_slot_id"`);
 
-    // Step 3: Remove is_booked column from timeslot
-    await queryRunner.query(`ALTER TABLE "timeslot" DROP COLUMN "is_booked"`);
+    // Step 3: Remove is_booked column from timeslot (only if exists)
+    await queryRunner.query(`
+      DO $$ BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='timeslot' AND column_name='is_booked'
+        ) THEN
+          ALTER TABLE "timeslot" DROP COLUMN "is_booked";
+        END IF;
+      END $$;
+    `);
 
     // Step 4: Add new time_slot column to appointment (nullable for now)
     await queryRunner.query(`ALTER TABLE "appointment" ADD "time_slot" TIME`);
@@ -60,17 +69,5 @@ export class FixTimeSlotColumn1752052581195 implements MigrationInterface {
       ADD CONSTRAINT "FK_9f9596ccb3fe8e63358d9bfcbdb"
       FOREIGN KEY ("slot_id") REFERENCES "timeslot"("slot_id") ON DELETE RESTRICT ON UPDATE NO ACTION
     `);
-
-    await queryRunner.query(`
-  DO $$ BEGIN
-    IF EXISTS (
-      SELECT 1 FROM information_schema.columns
-      WHERE table_name='timeslot' AND column_name='is_booked'
-    ) THEN
-      ALTER TABLE "timeslot" DROP COLUMN "is_booked";
-    END IF;
-  END $$;
-`);
-
   }
 }
