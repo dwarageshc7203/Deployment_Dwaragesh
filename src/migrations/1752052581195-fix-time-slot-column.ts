@@ -86,5 +86,7 @@ export class FixTimeSlotColumn1752052581195 implements MigrationInterface {
       ADD CONSTRAINT "FK_9f9596ccb3fe8e63358d9bfcbdb"
       FOREIGN KEY ("slot_id") REFERENCES "timeslot"("slot_id") ON DELETE RESTRICT ON UPDATE NO ACTION
     `);
+
+    
   }
 }

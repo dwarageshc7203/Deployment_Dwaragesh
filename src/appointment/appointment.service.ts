@@ -82,7 +82,7 @@ export class AppointmentService {
 
     const existing = await this.appointmentRepo
       .createQueryBuilder('appointment')
-      .leftJoin('appointment.time_slot_id', 'slot') // ✅ if time_slot_id is still a relation
+      .leftJoin('appointment.time_slot_ref', 'slot')
       .where('slot.slot_id = :slotId', { slotId: slot.slot_id })
       .andWhere('appointment.appointment_status != :status', { status: 'cancelled' })
       .orderBy('appointment.created_at', 'ASC')
@@ -126,7 +126,7 @@ if (existing.length >= patientsPerSlot) {
     const existingSessionBooking = await this.appointmentRepo
       .createQueryBuilder('appointment')
       .leftJoin('appointment.patient', 'patient')
-      .leftJoin('appointment.time_slot', 'slot') // time_slot is the relationship name
+      .leftJoin('appointment.time_slot_ref', 'slot') // ✅ use the correct relation name
       .leftJoin('slot.doctor', 'doctor')
       .where('patient.patient_id = :patientId', { patientId: patient.patient_id })
       .andWhere('doctor.doctor_id = :doctorId', { doctorId: dto.doctor_id })

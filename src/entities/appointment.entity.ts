@@ -29,6 +29,10 @@ export class Appointment {
 // ✅ Use a plain column
 @Column({ type: 'time', nullable: false })
 time_slot: string;
+@ManyToOne(() => Timeslot, { nullable: false, eager: false })
+@JoinColumn({ name: 'time_slot_id' })
+time_slot_ref: Timeslot;
+
 
 
   @Column({ type: 'enum', enum: ['morning', 'evening'], nullable: true })
