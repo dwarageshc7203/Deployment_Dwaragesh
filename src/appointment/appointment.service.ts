@@ -57,7 +57,6 @@ export class AppointmentService {
     }
 
     const now = dayjs().utc();
-
     if (now.isBefore(bookingStart) || now.isAfter(bookingEnd)) {
       throw new ForbiddenException('You can only book within the allowed booking window.');
     }
@@ -85,36 +84,23 @@ export class AppointmentService {
       .leftJoin('appointment.time_slot_ref', 'slot')
       .where('slot.slot_id = :slotId', { slotId: slot.slot_id })
       .andWhere('appointment.appointment_status != :status', { status: 'cancelled' })
-      .orderBy('appointment.created_at', 'ASC')
       .getMany();
 
-      // Extract patientsPerSlot
-const patientsPerSlot =
-  slot.patients_per_slot ?? doctor.patients_per_slot ?? 1;
-
-if (existing.length >= patientsPerSlot) {
-  throw new ConflictException('This slot is already fully booked');
-}
-
+    const patientsPerSlot = slot.patients_per_slot ?? doctor.patients_per_slot ?? 1;
+    if (existing.length >= patientsPerSlot) {
+      throw new ConflictException('This slot is already fully booked');
+    }
 
     let reportingTime = slot.slot_time;
 
-    if (doctor.schedule_Type === 'stream') {
-      if (existing.length > 0) {
-        throw new ConflictException('Slot already booked');
-      }
+    if (doctor.schedule_Type === 'stream' && existing.length > 0) {
+      throw new ConflictException('Slot already booked');
     }
 
     if (doctor.schedule_Type === 'wave') {
       const slotDuration = doctor.slot_duration ?? 30;
-      const patientsPerSlot = doctor.patients_per_slot ?? 3;
-
-      if (existing.length >= patientsPerSlot) {
-        throw new ConflictException('Wave slot is full');
-      }
-
-      const base = dayjs(`${slot.slot_date} ${slot.slot_time}`);
       const gap = Math.floor(slotDuration / patientsPerSlot);
+      const base = dayjs(`${slot.slot_date} ${slot.slot_time}`);
       reportingTime = base.add(gap * existing.length, 'minute').format('HH:mm');
     }
 
@@ -126,7 +112,7 @@ if (existing.length >= patientsPerSlot) {
     const existingSessionBooking = await this.appointmentRepo
       .createQueryBuilder('appointment')
       .leftJoin('appointment.patient', 'patient')
-      .leftJoin('appointment.time_slot_ref', 'slot') // ✅ use the correct relation name
+      .leftJoin('appointment.time_slot_ref', 'slot')
       .leftJoin('slot.doctor', 'doctor')
       .where('patient.patient_id = :patientId', { patientId: patient.patient_id })
       .andWhere('doctor.doctor_id = :doctorId', { doctorId: dto.doctor_id })
@@ -140,24 +126,22 @@ if (existing.length >= patientsPerSlot) {
         `You already have an appointment with this doctor in the ${session} session on ${slot.slot_date}`,
       );
     }
-console.log('Slot:', slot);
-console.log('Slot ID:', slot?.slot_id);
 
-    // FIXED: Create appointment with proper field mapping
-const appointment = this.appointmentRepo.create({
-  appointment_date: appointmentDate.toDate(),
-  session,
-  appointment_status: 'confirmed',
-  reason: dto.reason,
-  notes: dto.notes,
-  reporting_time: reportingTime,
-  time_slot: slot.slot_time, // plain column
-  time_slot_ref: slot,       // ✅ relation (very important)
-  doctor,
-  patient,
-});
+    const appointment = this.appointmentRepo.create({
+      appointment_date: appointmentDate.toDate(),
+      session,
+      appointment_status: 'confirmed',
+      reason: dto.reason,
+      notes: dto.notes,
+      reporting_time: reportingTime,
+      time_slot: slot.slot_time,
+      time_slot_ref: slot,
+      doctor,
+      patient,
+    });
 
     await this.appointmentRepo.save(appointment);
+    return { message: 'Appointment booked successfully' };
   }
 
   async getAppointmentsByDoctorAndDate(doctorId: number, date?: string) {
@@ -176,7 +160,7 @@ const appointment = this.appointmentRepo.create({
 
     return this.appointmentRepo.find({
       where: whereClause,
-      relations: ['doctor', 'patient', 'time_slot'], // time_slot is the relationship name
+      relations: ['doctor', 'patient', 'time_slot_ref'],
       order: { appointment_date: 'ASC' },
     });
   }
@@ -202,7 +186,7 @@ const appointment = this.appointmentRepo.create({
 
     return this.appointmentRepo.find({
       where: whereClause,
-      relations: ['doctor', 'patient', 'time_slot'], // time_slot is the relationship name
+      relations: ['doctor', 'patient', 'time_slot_ref'],
       order: { appointment_date: 'ASC' },
     });
   }
@@ -225,9 +209,7 @@ const appointment = this.appointmentRepo.create({
     const isPatient = appointment.patient?.user?.user_id === userId;
 
     if ((role === 'doctor' && !isDoctor) || (role === 'patient' && !isPatient)) {
-      throw new UnauthorizedException(
-        'You are not authorized to cancel this appointment',
-      );
+      throw new UnauthorizedException('You are not authorized to cancel this appointment');
     }
 
     await this.appointmentRepo.update(appointmentId, {
@@ -238,56 +220,56 @@ const appointment = this.appointmentRepo.create({
   }
 
   async getPatientAppointments(patientUserId: number, type: string) {
-  const patient = await this.patientRepo.findOne({
-    where: { user: { user_id: patientUserId } },
-  });
-  if (!patient) throw new NotFoundException('Patient not found');
+    const patient = await this.patientRepo.findOne({
+      where: { user: { user_id: patientUserId } },
+    });
+    if (!patient) throw new NotFoundException('Patient not found');
 
-  const query = this.appointmentRepo
-    .createQueryBuilder('appointment')
-    .leftJoinAndSelect('appointment.doctor', 'doctor')
-    .leftJoinAndSelect('appointment.time_slot', 'slot')
-    .where('appointment.patient = :patientId', { patientId: patient.patient_id });
+    const query = this.appointmentRepo
+      .createQueryBuilder('appointment')
+      .leftJoinAndSelect('appointment.doctor', 'doctor')
+      .leftJoinAndSelect('appointment.time_slot_ref', 'slot')
+      .where('appointment.patient = :patientId', { patientId: patient.patient_id });
 
-  if (type === 'upcoming') {
-    query.andWhere('appointment.appointment_status = :status', { status: 'confirmed' });
-    query.andWhere('appointment.appointment_date >= CURRENT_DATE');
-  } else if (type === 'past') {
-    query.andWhere('appointment.appointment_status = :status', { status: 'confirmed' });
-    query.andWhere('appointment.appointment_date < CURRENT_DATE');
-  } else if (type === 'cancelled') {
-    query.andWhere('appointment.appointment_status = :status', { status: 'cancelled' });
-  } else {
-    throw new BadRequestException('Invalid type. Use: upcoming | past | cancelled');
+    if (type === 'upcoming') {
+      query.andWhere('appointment.appointment_status = :status', { status: 'confirmed' });
+      query.andWhere('appointment.appointment_date >= CURRENT_DATE');
+    } else if (type === 'past') {
+      query.andWhere('appointment.appointment_status = :status', { status: 'confirmed' });
+      query.andWhere('appointment.appointment_date < CURRENT_DATE');
+    } else if (type === 'cancelled') {
+      query.andWhere('appointment.appointment_status = :status', { status: 'cancelled' });
+    } else {
+      throw new BadRequestException('Invalid type. Use: upcoming | past | cancelled');
+    }
+
+    return query.orderBy('appointment.appointment_date', 'ASC').getMany();
   }
 
-  return query.orderBy('appointment.appointment_date', 'ASC').getMany();
-}
-async getDoctorAppointments(doctorUserId: number, type: string) {
-  const doctor = await this.doctorRepo.findOne({
-    where: { user: { user_id: doctorUserId } },
-  });
-  if (!doctor) throw new NotFoundException('Doctor not found');
+  async getDoctorAppointments(doctorUserId: number, type: string) {
+    const doctor = await this.doctorRepo.findOne({
+      where: { user: { user_id: doctorUserId } },
+    });
+    if (!doctor) throw new NotFoundException('Doctor not found');
 
-  const query = this.appointmentRepo
-    .createQueryBuilder('appointment')
-    .leftJoinAndSelect('appointment.patient', 'patient')
-    .leftJoinAndSelect('appointment.time_slot', 'slot')
-    .where('appointment.doctor = :doctorId', { doctorId: doctor.doctor_id });
+    const query = this.appointmentRepo
+      .createQueryBuilder('appointment')
+      .leftJoinAndSelect('appointment.patient', 'patient')
+      .leftJoinAndSelect('appointment.time_slot_ref', 'slot')
+      .where('appointment.doctor = :doctorId', { doctorId: doctor.doctor_id });
 
-  if (type === 'upcoming') {
-    query.andWhere('appointment.appointment_status = :status', { status: 'confirmed' });
-    query.andWhere('appointment.appointment_date >= CURRENT_DATE');
-  } else if (type === 'past') {
-    query.andWhere('appointment.appointment_status = :status', { status: 'confirmed' });
-    query.andWhere('appointment.appointment_date < CURRENT_DATE');
-  } else if (type === 'cancelled') {
-    query.andWhere('appointment.appointment_status = :status', { status: 'cancelled' });
-  } else {
-    throw new BadRequestException('Invalid type. Use: upcoming | past | cancelled');
+    if (type === 'upcoming') {
+      query.andWhere('appointment.appointment_status = :status', { status: 'confirmed' });
+      query.andWhere('appointment.appointment_date >= CURRENT_DATE');
+    } else if (type === 'past') {
+      query.andWhere('appointment.appointment_status = :status', { status: 'confirmed' });
+      query.andWhere('appointment.appointment_date < CURRENT_DATE');
+    } else if (type === 'cancelled') {
+      query.andWhere('appointment.appointment_status = :status', { status: 'cancelled' });
+    } else {
+      throw new BadRequestException('Invalid type. Use: upcoming | past | cancelled');
+    }
+
+    return query.orderBy('appointment.appointment_date', 'ASC').getMany();
   }
-
-  return query.orderBy('appointment.appointment_date', 'ASC').getMany();
-}
-
 }
