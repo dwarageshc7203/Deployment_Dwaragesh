@@ -140,6 +140,8 @@ if (existing.length >= patientsPerSlot) {
         `You already have an appointment with this doctor in the ${session} session on ${slot.slot_date}`,
       );
     }
+console.log('Slot:', slot);
+console.log('Slot ID:', slot?.slot_id);
 
     // FIXED: Create appointment with proper field mapping
 const appointment = this.appointmentRepo.create({
