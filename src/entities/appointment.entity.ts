@@ -26,9 +26,10 @@ export class Appointment {
   @Column({ type: 'date' })
   appointment_date: Date;
 
-  @ManyToOne(() => Timeslot, (slot) => slot.appointments, {
+@ManyToOne(() => Timeslot, (slot) => slot.appointments, {
   eager: true,
-  onDelete: 'RESTRICT', // or leave it default
+  nullable: false,
+  onDelete: 'RESTRICT',
 })
 @JoinColumn({ name: 'slot_id' })
 time_slot: Timeslot;
